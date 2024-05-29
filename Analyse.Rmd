@@ -1,6 +1,7 @@
 ---
-title: "Analyse de données"
-author: "Ken"
+title: "Analyse de Corrélation"
+author: "Kevin"
+date: system date()
 output:
   rmdformats::downcute:
     logo: logo.jpg
@@ -15,9 +16,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-Fusionner avec d'autres fichiers R
 
-```{r, message=FALSE, warning=FALSE}
+
+```{r, message=FALSE, include=FALSE,warning=FALSE, "Import autre fichiers"}
 source("fonction_meteo.R")
 source("Import_Data.R")
 source("fonction_filtre_data.R")
@@ -26,7 +27,7 @@ source("fonction_filtre_data.R")
 
 
 
-```{r, message=FALSE}
+```{r, message=FALSE, include=FALSE ,echo=FALSE, "Import packages"}
 library(telraamStats)
 library(ggplot2)
 library(tidyverse)
@@ -40,34 +41,33 @@ library(corrplot)
 ```
 
 
-# Import des données de tous les capteurs
-```{r}
-load("data/segments.RData")
-sensors = bind_rows(list(data_01, data_02, data_04, data_05,data_06, data_07, data_08,data_10, data_11, data_13, data_14, data_15, data_16, data_18))
 
-```
 
+```{r, include=FALSE, "Ajout du type de NA"}
 # Ajout de la colonne du type de données manquantes
 
-
-```{r}
-# On crée une liste contenants les données de tous les capteurs
 liste_data_capteurs = list(data_01, data_02, data_04, data_05,data_06, data_07, data_08,data_10, data_11, data_13, data_14, data_15, data_16, data_18)
 
-# On ajoute la colonne du type de données manquantes
+
 for(i in 1:length(liste_data_capteurs)){
   liste_data_capteurs[[i]] = NA_Type(liste_data_capteurs[[i]])
 }
 
-# fusionner meteo et data_01 avec un left join
-
-
+visu_na(new_data(meteo, liste_data_capteurs[[1]]))
+visu_na(meteo)
+visu_na(liste_data_capteurs[[1]] %>% filter(type==2))
 ```
 
 
-# Analyse de corrélation de chaque capteur indépendamment avec les variables de météo.
 
-```{r, message=FALSE, warning=FALSE}
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, "Corrélation cahque capteurs"}
+## Analyse de corrélation des variables météo avec chaque capteur indépendemment.
+
+#On fait le choix de ne rien enlever comme données pour cette première analyse afin de voir l'impact après #suppression de certaines données (les heures de nuit). 
+
+
 
 #Création de liste de données capteur + météo
 
@@ -77,572 +77,91 @@ for(i in 1:length(liste_data_capteurs)){
   liste_data_capteurs_meteo[[i]] = new_data(meteo, liste_data_capteurs[[i]])
 }
 
+
 # Matrice de corrélation pour chaque variable
-# En utilisant la fonction corrélation_uptime, créons la matrice de corrélation pour chaque capteur
 
 for(i in 1:length(liste_data_capteurs_meteo)){
-  corrélation_uptime(liste_data_capteurs_meteo[[i]])
+ corrélation_uptime(liste_data_capteurs_meteo[[i]], liste_var_selected = c("T", "U", "VV", "RR1", "GLO", "pedestrian", "vehicule"))
 }
 
-new_data(meteo, data_01)
-# Importation de données météo
-
-meteo_saint_jacques = read.csv2("data/meteo_saint_jacques.csv", dec=",")
-
-meteo_St_jacques_2023_2024 = read.csv2("data/meto_St_jac_05_2023_2024.csv", dec=",")
-
-
-RteVitre_data = new_data(meteo_saint_jacques, traffic %>% filter(segment_id == 9000001844))
-
-ParisArc_data = new_data(meteo_saint_jacques, traffic %>% filter(segment_id == 9000002453))
-
-data15_meteo = new_data(meteo_St_jacques_2023_2024, data_15)
-
-dattta = substract_successive_NA(data_15,24)
-dattta_meteo = new_data(meteo_St_jacques_2023_2024,dattta)
-
-
-# sensors: ensemble des capteurs avec toutes les données
-# capteurs: ensemble des capteurs avec un filtre de certaines périodes
-sensors_meteo = new_data(meteo_St_jacques_2023_2024, sensors)
-
-capteurs_meteo = new_data(meteo_St_jacques_2023_2024,substract_successive_NA(sensors,24))
 ```
 
 
 
-Avec les données de la météo, on cherche des variables qui sont potentiellement correlées à l'uptime:
+# Analyse de corrélation sur les variables météo et l'ensemble des capteurs
 
-```{r}
-## fonction  présentant la corrélation 
-corrélation_uptime = function(complete_data, liste_var_selected =NULL){
-  if( !is.null((liste_var_selected))){
-    selected_vars <- c("uptime", liste_var_selected)
-    mat_var = cor(method = "spearman" ,drop_na(complete_data %>%select(all_of(selected_vars))))
-  }else{mat_var = cor(method = "spearman" , drop_na(complete_data %>% select(!c(date))))}
-  corrplot(mat_var, type = "upper", "number")
++ avec filtre des données manquantes de type 2 (faisant varier le seuil definissant le type 2 de 25 à 50 pas de 5) mais sans suppression de données de la nuit
+
+L'objectif étant de constater la nuances du résultat des corrélations avant et après suppression
+
+```{r, echo=FALSE}
+for(i in seq(25, 50, 5)){
+  corrélation_uptime(new_data(meteo, (NA_Type(sensors, threshold = i))) %>% filter(type==2), liste_var_selected = c("T", "U", "VV", "GLO", "pedestrian", "vehicule"))
 }
-
-
-corrélation_uptime(RteVitre_data, liste_var_selected = c("T", "U", "VV", "RR1", "GLO", "pedestrian", "vehicule"))
-
-
-corrélation_uptime(ParisArc_data, liste_var_selected = c("T", "HTX", "HTN", "U", "UX", "vehicule", "pedestrian"))
-
-
-# dattta_meteo == données du capteurs 15 avec les variables météo ayant effectué un filtre de valeurs manquantes
-corrélation_uptime(dattta_meteo, liste_var_selected = c("T", "HTX", "HTN", "U", "UX", "vehicule", "pedestrian"))
-
-#data15_meteo == donnéees du capteurs 15 avec les variables météo
-corrélation_uptime(data15_meteo, liste_var_selected = c("T", "HTX", "HTN", "U", "UX", "vehicule", "pedestrian"))
-
 ```
 
-Ce diagramme de corrélation nous revèle le fait que certaines variables de météo sont correlées à l'uptime (période 10/2022 à 01/2023) telles que: **la température(0.43), l'humidité(corrélation négative: -0.52), l'insolation(0.56)**... Cela peut être considérée comme pertinent en fonction de l'usage. 
-Analysons cela avec l'ensemble de tous les capteurs pour avoir un résultat global de la corrélation:
+On remarque que plus on augmente le seuil plus les corrélation diminue mais faiblement
 
+------------------
 
-```{r}
-# Test de corrélation de pearson avec des capteurs (Paris ARC et Rue de Manoir)
-cor.test(ParisArc_data$uptime, ParisArc_data$T)
++ avec un filtre sur les valeurs manquantes de type 2 (faisant varier le seuil nous permettant de définir les valeurs manquantes de type 2 de 25 à 50 avec un pas de 5) et suppression des heures de nuit
 
-cor.test(data15_meteo$uptime, data15_meteo$U)
-
-cor.test(dattta_meteo$uptime, dattta_meteo$T)
-
-```
-
-Cependant, le test de pearson est uniquement fait pour mesurer les relations linéaires entre variable et utilise une hypothèse forte sur la normalité de la distribution des données. Pour valider nos résultats, il faudra s'assurer que cette hypothèse est vérifiée
-
-+ shapiro test: limité à un petit jeu de données (3 a 5000 lignes)
-
-+ test de kolmogorovsminov
-
-```{r}
-
-ks.test(ParisArc_data$uptime, "pnorm", mean=mean(ParisArc_data$uptime), sd=sd(ParisArc_data$uptime))
-
-ks.test(data15_meteo$vehicule, "pnorm", mean=mean(data15_meteo$vehicule), sd=sd(data15_meteo$vehicule))
-
-
-```
-
-L'hypothèse de normalité de la distribution des données est rejetée.
-
-De ce fait procédons au test de corrélation de spearman pour la suite
-
-```{r}
-
-cor.test(ParisArc_data$uptime, ParisArc_data$T, method = "spearman")
-
-cor.test(data15_meteo$uptime, data15_meteo$U, method = "spearman")
-
-cor.test(dattta_meteo$uptime, dattta_meteo$T, method = "spearman")
-```
-
-
-```{r}
- 
-
-corrélation_uptime(sensors_meteo, liste_var_selected = c("T", "HTX", "HTN", "U", "UX", "INS","pedestrian", "TN", "vehicule"))
-
-corrélation_uptime(capteurs_meteo, liste_var_selected = c("T", "HTX", "HTN", "U", "UX", "INS","pedestrian", "TN", "vehicule"))
-```
-
-On s'aperçoit que les valeurs d'auto-corrélation ont tout de même diminué...
-
-
-Procedons au test statisque portant sur la corrélation entre les variables de climat et l'uptime à travers un test de corrélation de **pearson** qui sera effectué avec les données de l'ensemble de tous les capteurs sur la période de **Mai 2023 à Mai 2024**
- 
-
-```{r}
-
-# Test de corrélation de pearson avec l'ensemble des capteurs
-
-cor.test(sensors_meteo$uptime, sensors_meteo$T)
-
-cor.test(capteurs_meteo$uptime, capteurs_meteo$T)
-
-cor.test(sensors_meteo$uptime, sensors_meteo$T, method = "spearman" )
-
-cor.test(capteurs_meteo$uptime, capteurs_meteo$T, method = "spearman")
-```
-
-
-La p-value (<0.05) renvoyée nous informe sur la présence significative d'une corrélation  entre la **température** et l'**uptime** (rejet de l'hypothèse nulle d'absence de corrélation). Le coefficioent de corrélation est 0.30
-
-```{r}
-cor.test(sensors_meteo$uptime, sensors_meteo$INS)
-
-cor.test(capteurs_meteo$uptime, capteurs_meteo$INS)
-```
-
-
-Même conclusion pour l'**insolation** et l'**uptime**; avec un coefficient de corrélation de 0.46.
-
-```{r}
-cor.test(sensors_meteo$uptime, sensors_meteo$U, method = "spearman")
-```
-
-En ce qui concerne la variable **humidité**, le test de corrélation est positif (rejet de l'hypothèse nulle de non corrélation), avec un coefficient négatif(-0.45).
-
---------------
-
-## Relation entre l'uptime et différentes variables du climat
-
-```{r, warning=FALSE, echo=FALSE}
-
-sensors_meteo %>% filter(uptime > 0) %>%  ggplot(aes(x= T, y=uptime, col=uptime)) + geom_point() + ggtitle("Relation entre l'Uptime et la température(ensemble des capteurs)") + xlab("Température") + ylab("uptime")+ geom_smooth(method = "lm", col = "red")
-
-ParisArc_data %>% filter(uptime > 0) %>%  ggplot(aes(x= uptime, y=INS2, col=uptime)) + geom_point() + ggtitle("Relation entre l'Uptime et l'insolation(Paris Arc)") + xlab("Uptime") + ylab("Insolation")+ geom_smooth(method = "lm", col = "red")
-
-data15_meteo %>% filter(uptime > 0) %>%  ggplot(aes(x= uptime, y=U, col=uptime)) + geom_point() + ggtitle("Relation entre l'Uptime et l'humidité (Rue de Manoir)") + xlab("Uptime") + ylab("Humidité")+ geom_smooth(method = "lm", col = "red")
-```
-
-On n'observe pas un graphique facilement interprétable pour en tirer une information pertinente. Cependant on observe des tendances dans chacun des cas: soit croissant soit décroissant
-
-```{r, warning=FALSE, message=FALSE, echo=FALSE}
-ParisArc_data %>% filter(uptime > 0) %>%  ggplot(aes(x= T, y=uptime, col=uptime)) + geom_point() + ggtitle("Relation entre l'Uptime et la température, utilisant un seul capteur(Paris Arc)")+ geom_smooth(method = "lm", col = "blue") + xlab("Température") + ylab("uptime")
-
-burel_data %>% filter(uptime > 0) %>%  ggplot(aes(x= uptime, y=INS2, col=uptime)) + geom_point() + ggtitle("Relation entre l'Uptime et l'insolation, utilisant un seul capteur")+ geom_smooth(method = "lm", col = "blue") + xlab("Uptime") + ylab("Insolation")+ facet_grid(~as.factor(weekday))
-
-burel_data %>% filter(uptime > 0) %>%  ggplot(aes(x= U, y=uptime, col=uptime)) + geom_point() + ggtitle("Relation entre l'Uptime et l'humidité, utilisant un seul capteur")+ geom_smooth(method = "lm", col = "blue") + xlab("Humidité") + ylab("uptime")
-```
-
--------------
-
-+ Un regard sur la corrélation présentée dans le résultat d'ACP.
-
-Nous pouvons également envisager une ACP sur nos différentes variables afin de voir si des liens de corrélations nous ont échappé
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
-ACP_var1 = FactoMineR::PCA(capteurs_meteo %>% select(uptime, U, T, INS, TN, HTX), scale.unit = TRUE, graph = FALSE)
 
-plot(ACP_var1, axes = 1:2, choix = "var")
+for(i in seq(25, 50, 5)){
+  corrélation_uptime(new_data(meteo, stop_sensor(NA_Type(sensors, threshold = i), remove_data = TRUE, uptime_choice = 0.5)) %>% filter(type==2), liste_var_selected = c("T", "U", "VV", "GLO", "pedestrian", "vehicule"))
+}
 
-ACP_var2 = FactoMineR::PCA(sensors_meteo %>% select(uptime, U, T, INS, TN, HTX), scale.unit = TRUE, graph = FALSE)
-
-plot(ACP_var2, axes = 1:2, choix = "var")
-
-ACP_var3 = FactoMineR::PCA(data15_meteo %>% select(uptime, U, T, INS, TN, HTX), scale.unit = TRUE, graph = FALSE)
-
-plot(ACP_var3, axes = 1:2, choix = "var")
 ```
 
-La représentation des 2 premiers axes principaux présentant plus de 70% de l'information nous informe du  fait que la variable **INS** est est fortement correlées à l'**uptime** qui à son tour est proche de l'axe 1. **T** et **TN** étant fortement correlées à l'axe 1 on en déduit par transition que la corrélatio **uptime** **température** n'est pas non significative.
+La remarque reste la même que précédemment: plus on augmente le seuil plus les corrélation diminue mais faiblement
 
-----------------
 
-# Filtre de nos données (pour un capteur)
 
-## Séparation de nos données
+# Analyse de corrélation de l'ensemble des capteurs sans filtre de données manquantes de type 2 mais avec suppression des heures de nuit
 
-+ Données avec **uptime** < 0.5 
-
-+ Données avec **uptime** >= 0.5
-
-## Utilisation des données en supprimant les NA
-
-Pour eviter de saturer le rapport, nous ne présenterons pas tous les graphiques. 
-
-+ Visualisation de l'évolution du nombre de véhicule par heure et des potentiels tendances: 
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
-data_01_sans_NA = data_01 %>% filter(!uptime<0.5)
+corrélation_uptime(new_data(meteo, stop_sensor(NA_Type(sensors))), liste_var_selected = c("T", "U", "VV", "RR1", "GLO", "pedestrian", "vehicule"))
+```
 
-data_01_sans_NA %>% ggplot(aes(x=day, y=heavy + car)) + geom_line(color="blue") + labs(title = "Evolution du traffic par heure de Burel", x = "date", y = "nombre de véhicules")
 
-forecast::ggtsdisplay(data_01_sans_NA %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter")
+On remarque que les corrélation sont plus faibles que les précédentes (avec un seuil de 50%) ce qui confirme le fait que les données manquantes de type 2 sont plus corrélées avec les variables météo
+
+
+
+# Analyse de corrélation de l'ensemble des capteurs avec un filtre sur les valeurs manquantes de type 2 sans suppression des heures de nuit.
+
+
+```{r, echo=FALSE}
+corrélation_uptime(new_data(meteo, NA_Type(sensors)) %>% filter(type==2), liste_var_selected = c("T", "U", "VV", "RR1", "GLO", "pedestrian", "vehicule"))
 
 ```
 
 
-+ Visualisation de l'évolution du nombre de véhicule durant les vacances par heure:
+Malgré le fait que l'on conserve les heures de nuit, les corrélations sont toutes autant importantes.
 
-```{r, warning=FALSE, echo=FALSE}
-data_01_sans_NA %>% filter(holiday==TRUE) %>% ggplot(aes(x=day, y=heavy + car)) + geom_line(color="blue") + geom_smooth() + labs(title = "Evolution du traffic par heure de Burel durant les vacances", x = "date", y = "nombre de véhicules")
+------------------
 
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(holiday==TRUE)  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter")
+# Corrélation à partir d'une ACP sur les données nettoyées sans filtre de NA de type 2
 
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+ACP1 = FactoMineR::PCA(new_data(meteo, stop_sensor(NA_Type(sensors))) %>% select(uptime, U, T, GLO, VV, RR1), scale.unit = TRUE, graph = FALSE)
 
+# plot ACP des variables
+FactoMineR::plot.PCA(ACP1, axes=c(1,2), choix="var")
 ```
-
-+ Visualisation de l'évolution du nombre de véhicule hors période de vacances par heure:
-
-```{r, warning=FALSE, echo=FALSE}
-data_01_sans_NA %>% filter(holiday==FALSE) %>% ggplot(aes(x=day, y=heavy + car)) + geom_line(color="blue") + geom_smooth()+ labs(title = "Evolution du traffic par heure de Burel hors période de vacances", x = "date", y = "nombre de véhicules")
-
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(holiday==FALSE)  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter")
-
-```
-
-
-+ Analyse par périodes importantes:
-Evolution des véhicules chaque jour de la semaine (de lundi à dimanche)
-Cependant, aucune tendance ne s'est présentée
-
-```{r}
-data_01_sans_NA %>% filter(holiday==FALSE) %>% ggplot(aes(x=day, y=heavy + car)) + geom_line(color="blue") + geom_smooth(color="green") +  facet_grid(~weekday)  + labs(title = "Evolution du traffic par heure de Burel hors période de vacances", x = "date", y = "nombre de véhicules")
-
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(weekday=="monday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous les lundi")
-
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(weekday=="monday" & holiday==F)  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous les lundi")
-
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(weekday=="tuesday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter", main="Etude de l'auto-corrélation tous les lundi ayant supprimé les uptime < 0.5")
-
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(weekday=="wednesday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous les mercredi ayant supprimé les uptime < 0.5")
-
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(weekday=="thursday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous les jeudi ayant supprimé les uptime < 0.5")
-
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(weekday=="friday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous les vendredi ayant supprimé les uptime < 0.5")
-
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(weekday=="saturday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous samedi ayant supprimé les uptime < 0.5")
-
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(weekday=="sunday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous les dimanches ayant supprimé les uptime < 0.5")
-
-Box.test(data_01_sans_NA %>% filter(weekday=="sunday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), lag = 25)
-
-```
-
-l'hypothèse nulle de l'abscence d'auto-corrélation est rejeté à 5% avec une p-value << 0.05.
-----------
-
-Suite:
-
-```{r warning=FALSE, message=FALSE}
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(as.character(vacation)=="No vacation")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter", main="Etude de l'auto-corrélation pendant la période des activités (No vacation)")
-
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(as.character(vacation)=="Vacances d'Hiver")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter",  main="Etude de l'auto-corrélation pendant la période des vacances d'Hiver")
-
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(as.character(vacation)=="Vacances de la Toussaint")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter",  main="Etude de l'auto-corrélation pendant la période des vacances de la Toussaint")
-
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(as.character(vacation)=="Vacances de Noël")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter",  main="Etude de l'auto-corrélation pendant la période des vacances de Noël")
-
-
-
-forecast::ggtsdisplay(data_01_sans_NA %>% filter(as.character(vacation)=="Vacances de Printemps")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter", main="Etude de l'auto-corrélation pendant la période des vacances du Printemps", smooth = T)
-
-arima = forecast::auto.arima(data_01_sans_NA %>% filter(as.character(vacation)=="Vacances de Printemps")  %>% mutate(vehicule = car + heavy) %>% select(vehicule))
-
-
-```
-
-En enlevant les données relatives à l'uptime < 0.5, on n'obtiens pas de tendance particulière intéressant dans notre étude.
-
-Effectuons les mêmes analyses sans toutefois supprimer des données car la suppréssion de données entraine la perte d'information et donc une chronologie confuse:
-
-```{r}
-data_01 %>% filter(holiday==FALSE) %>% ggplot(aes(x=day, y=heavy + car)) + geom_line(color="blue") + geom_smooth(color="red") +  facet_grid(~weekday) +  labs(title = "Evolution du traffic par heure de Burel hors période de vacances", x = "date", y = "nombre de véhicules")
-
-forecast::ggtsdisplay(data_01 %>% filter(weekday=="monday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous les lundi")
-
-forecast::ggtsdisplay(data_01 %>% filter(weekday=="tuesday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous les mardi ayant supprimé les uptime < 0.5")
-
-forecast::ggtsdisplay(data_01 %>% filter(weekday=="wednesday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous les mercredi ayant supprimé les uptime < 0.5")
-
-forecast::ggtsdisplay(data_01 %>% filter(weekday=="thursday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous les jeudi ayant supprimé les uptime < 0.5")
-
-forecast::ggtsdisplay(data_01 %>% filter(weekday=="friday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous les vendredi ayant supprimé les uptime < 0.5")
-
-forecast::ggtsdisplay(data_01 %>% filter(weekday=="saturday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous samedi ayant supprimé les uptime < 0.5")
-
-forecast::ggtsdisplay(data_01 %>% filter(weekday=="sunday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter" , main="Etude de l'auto-corrélation tous les dimanches ayant supprimé les uptime < 0.5")
-
-Box.test(data_01 %>% filter(weekday=="sunday")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), lag = 25)
-```
-
-
-```{r, warning=FALSE, echo=FALSE}
-forecast::ggtsdisplay(data_01 %>% filter(as.character(vacation)=="No vacation")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter", main="Etude de l'auto-corrélation pendant la période des activités (No vacation):  Burel", lag.max = 80)
-
-forecast::ggtsdisplay(data_01 %>% filter(as.character(vacation)=="Vacances d'Hiver")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter",  main="Etude de l'auto-corrélation pendant la période des vacances d'Hiver: Burel", lag.max = 80)
-
-forecast::ggtsdisplay(data_01 %>% filter(as.character(vacation)=="Vacances de la Toussaint")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter",  main="Etude de l'auto-corrélation pendant la période des vacances de la Toussaint: Burel", lag.max = 80)
-
-forecast::ggtsdisplay(data_01 %>% filter(as.character(vacation)=="Vacances de Noël")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter",  main="Etude de l'auto-corrélation pendant la période des vacances de Noël: Burel", lag.max = 80)
-
-
-
-forecast::ggtsdisplay(data_01 %>% filter(as.character(vacation)=="Vacances de Printemps")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter", main="Etude de l'auto-corrélation pendant la période des vacances du Printemps", smooth = T, lag.max = 80)
-
-forecast::auto.arima(data_01 %>% filter(as.character(vacation)=="Vacances de Printemps")  %>% mutate(vehicule = car + heavy) %>% select(vehicule))
-```
-
-```{r}
-forecast::ggtsdisplay(data_07 %>% filter(as.character(vacation)=="No vacation")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter", main="Etude de l'auto-corrélation pendant la période des activités (No vacation):  Rue Grand Domaine", lag.max = 80)
-
-forecast::ggtsdisplay(data_07 %>% filter(as.character(vacation)=="Vacances d'Hiver")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter",  main="Etude de l'auto-corrélation pendant la période des vacances d'Hiver: Rue Grand Domaine", lag.max = 80)
-
-forecast::ggtsdisplay(data_07 %>% filter(as.character(vacation)=="Vacances de la Toussaint")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter",  main="Etude de l'auto-corrélation pendant la période des vacances de la Toussaint: Rue Grand Domaine", lag.max = 80)
-
-forecast::ggtsdisplay(data_07 %>% filter(as.character(vacation)=="Vacances de Noël")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter",  main="Etude de l'auto-corrélation pendant la période des vacances de Noël: Rue Grand Domaine", lag.max = 80)
-
-
-
-forecast::ggtsdisplay(data_07 %>% filter(as.character(vacation)=="Vacances de Printemps")  %>% mutate(vehicule = car + heavy) %>% select(vehicule), splot.type = "scatter", main="Etude de l'auto-corrélation pendant la période des vacances du Printemps, Rue Grand Domaine", smooth = T, lag.max = 80)
-```
-
-
-
-```{r}
-data_01 %>% filter(uptime<0.5) %>% ggplot(aes(x=day, y=heavy + car)) + geom_line(color="blue") + geom_smooth() + labs(title = "Evolution du traffic (NA) par heure de Burel", x = "date", y = "nombre de véhicules")
-
-forecast::ggtsdisplay(data_01 %>% filter(uptime<0.5)  %>% mutate(vehicule = car + heavy) %>% select(uptime), splot.type = "scatter", lag.max = 80)
-```
-
-```{r}
-data_01 %>% filter(holiday==FALSE) %>% ggplot(aes(x=day, y=uptime)) + geom_line(color="blue") + geom_smooth(color="red") +  facet_grid(~weekday) +  labs(title = "Evolution du traffic par heure de Burel hors période de vacances", x = "date", y = "nombre de véhicules")
-```
-
-
-
-```{r}
-burel_data 
-data_01 %>% group_by()
-```
-
-```{r}
-variables = colnames(data_01[c(6:18, 23)])
-
-for (var in variables){
-  
-  max_value = max(data_01[[var]], na.rm = TRUE)
-  p = ggplot(data_01, aes(x=as.character(vacation), y=.data[[var]], fill=as.character(vacation))) + 
-    geom_boxplot()+
-    scale_fill_brewer(palette = "Set1") +
-    theme_minimal() +
-    theme(axis.text = element_text(angle = 45, hjust = 1))+ ylim(0, max_value)
-  
-  print(p)
-}
-```
-
-
-```{r}
-amelia(data_01 %>% mutate(vehicule = ifelse(uptime<0.5, NA, car + heavy)) %>%  select(vehicule), ts=data_01$date, cs=data_01$car + data_01$heavy)
-
-data_001 <- data_01 %>%
-  mutate(vehicule = ifelse(uptime < 0.5, NA, car + heavy), date = as.Date(date))
-
-# Apply Amelia for multiple imputation
-amelia_output <- amelia(
-  data_001 %>% select(date, car, heavy, vehicule),
-  ts = "date",
-  cs = ("vehicule"),
-  idvars = c("vehicule","date")
-)
-
-summary(amelia_output)
-```
-
-```{r}
-vis_miss(data_01 %>% mutate(vehicule =ifelse(uptime<0.5, NA, car + heavy) ) %>% select(uptime, day, hour, vehicule))
-```
-
-
-
-# Le package **Prophet**
-
-```{r, warning=FALSE}
-df_with_na <- filtered$data %>% mutate(vehicule =ifelse(uptime<0.5, NA, car + heavy) ) %>% select(date, vehicule) %>% rename(ds=date, y=vehicule)
-df_with_na$ds = as.POSIXct(df_with_na$ds, tz = 'CET')
-df_with_na = df_with_na %>% mutate(type=ifelse(is.na(df_with_na$y), 0,1))
-
-df_without_na <- df_with_na[!is.na(df_with_na$y), ]
-
-m = prophet(df_without_na, yearly.seasonality = T)
-
-
-future <- make_future_dataframe(m, periods = 1, freq = 3600)
-tail(future, 10)
-
-
-forecast <- predict(m, future)
-tail(forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
-
-df_with_na$y[is.na(df_with_na$y)] <- forecast$yhat[is.na(df_with_na$y)]
-df_with_na = df_with_na %>% mutate(type=ifelse(is.na(df_with_na$y), "imputed","original"))
-
-unique(df_with_na$type)
-plot(m, forecast)
-ggplot(forecast, aes(x = ds, y=forecast$yhat)) + geom_point(color="red") + geom_point(aes(x = ds, y=filtered$data %>% mutate(vehicule =ifelse(uptime<0.5, NA, car + heavy) ) %>% select(vehicule)))
-prophet_plot_components(m, forecast)
-
-p <- ggplot() +
-  geom_line(data = forecast, aes(x = ds, y = yhat), color = 'blue') +
-  geom_point(data = df_with_na, aes(x = ds, y = y, color = type)) +
-  scale_color_manual(values = c("Original" = "brown", "Imputed" = "red")) +
-  labs(title = "Forecast with Imputed Values",
-       x = "Date",
-       y = "Value",
-       color = "Data Type")
-p
-dyplot.prophet(m, forecast)
-```
-
-
-
-
-
-
-
-
-
-
-
 
 ---------------
 
-```{r}
-trafficNA = Clean_NA_segments(list(data_05, data_06),24) %>% mutate(vehicule =ifelse(uptime<0.5, NA, car + heavy) ) %>% select(date, vehicule)
-trafficNA$date = lubridate::as_datetime(trafficNA$date)
-naValue_traffic = trafficNA[is.na(trafficNA$vehicule),]
+# Corrélation à partir d'une ACP après nettoyage et filtre
 
-p <- ggplot(data = trafficNA, aes(x = date, y = vehicule))+
-  geom_line(color = "#00AFBB", linewidth = 0.6)
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+ACP2 = FactoMineR::PCA(new_data(meteo, stop_sensor(NA_Type(sensors))) %>% filter(type==2) %>% select(uptime, U, T, GLO, VV, RR1), scale.unit = TRUE, graph = FALSE)
 
-p + scale_x_datetime(date_labels = "%m/%Y")+
-  ggtitle("Répérage des valeurs à corriger après suppression de quelques unes")+
-  theme(plot.title = element_text(hjust = 0.5))+
-  labs(y="Nombre de véhicule", x = "Jour") +
-  geom_vline(xintercept = naValue_traffic$date, 
-             colour = 'red', linetype="dashed")
-
-
-naValue_traffic
-
-```
-
-
-```{r}
-df = ParisArc_data %>% mutate(vehicule =ifelse(uptime<0.5, NA, vehicule) ) %>% select(date, vehicule, uptime, T, U, INS, INS2, UX)
-
-dfNoNA = df[-is.na(df$vehicule),]
-
-df_mis = dfNoNA
-
-df_mis$vehicule[sample(nrow(df_mis), round(0.2*nrow(df_mis)))] = NA
-
-summary(df_mis)
-
-df_mis$date = as.numeric(df_mis$date)
-
-df_imp = missForest::missForest(df_mis, xtrue = dfNoNA, verbose = TRUE, variablewise = TRUE)
-
-df_imp
-```
-
-# Exponential Moving Average (moyenne mobile exponentielle): donne plus de poids aux valeurs à proximitées
-
-test
-
-```{r}
-
-# Récupération des données avec NA
-data = trafficNA
-data = data %>% mutate(type=ifelse(is.na(data$vehicule), "imputed","original"))
-
-# Imputation des valeurs manquantes par interpolation linéaire
-data$vehicule <- zoo::na.approx(data$vehicule, na.rm = FALSE)
-
-# Combler les valeurs manquantes en début et fin de série
-data$vehicule <- zoo::na.fill(data$vehicule, "extend")
-
-
-ema = TTR::EMA(data$vehicule, n=3)
-ema = data.frame(date = data$date, predic = ema, type = data$type)
-
-print(ema)
-
-data$vehicule[is.na(data$vehicule)] <- ema[is.na(data$vehicule)]
-
-
-p <- ggplot() +
-  geom_point(data = ema, aes(x = date, y = predic, color = type)) +
-  labs(title = "EMA with Imputed Values",
-       x = "Date",
-       y = "Value",
-       color = "Data Type")
-p
-```
-
-```{r}
-# Récupération des données avec NA
-
-visu_predict = function(data_capteur){
-  
-
-data2 = Clean_NA_segments(data_capteur,24) %>% mutate(vehicule =ifelse(uptime<0.5, NA, car + heavy) ) %>% select(date, vehicule)
-data2 = data2 %>% mutate(type=ifelse(is.na(data2$vehicule), "imputed","original"))
-
-# Imputation des valeurs manquantes par interpolation linéaire
-data2$vehicule <- zoo::na.approx(data2$vehicule, na.rm = FALSE)
-
-# Combler les valeurs manquantes en début et fin de série
-data2$vehicule <- zoo::na.fill(data2$vehicule, "extend")
-
-
-ema = TTR::EMA(data2$vehicule, n=3)
-ema = data.frame(date = data2$date, predic = ema, type = data2$type)
-
-
-data2$vehicule[is.na(data2$vehicule)] <- ema[is.na(data2$vehicule)]
-
-
-p <- ggplot() +
-  geom_point(data = ema, aes(x = date, y = predic, color = type)) +
-  labs(title = "EMA with Imputed Values",
-       x = "Date",
-       y = "Value",
-       color = "Data Type")
-return(p)
-}
-
-
-visu_predict(sensors)
-for(i in capteurs[1:5]){
-  visu_predict(i)
-}
+# plot ACP des variables
+FactoMineR::plot.PCA(ACP2, axes=c(1,2), choix="var")
 ```
 
 
