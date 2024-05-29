@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Fusionner avec d'autres fichiers R
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 source("fonction_meteo.R")
 source("Import_Data.R")
 source("fonction_filtre_data.R")
@@ -51,17 +51,21 @@ sensors = bind_rows(list(data_01, data_02, data_04, data_05,data_06, data_07, da
 
 
 ```{r}
+# On crée une liste contenants les données de tous les capteurs
 liste_data_capteurs = list(data_01, data_02, data_04, data_05,data_06, data_07, data_08,data_10, data_11, data_13, data_14, data_15, data_16, data_18)
 
-
+# On ajoute la colonne du type de données manquantes
 for(i in 1:length(liste_data_capteurs)){
   liste_data_capteurs[[i]] = NA_Type(liste_data_capteurs[[i]])
 }
 
+# fusionner meteo et data_01 avec un left join
+
+
 ```
 
 
-## Analyse de corrélation de chaque capteur indépendamment avec les variables de météo.
+# Analyse de corrélation de chaque capteur indépendamment avec les variables de météo.
 
 ```{r, message=FALSE, warning=FALSE}
 
@@ -73,8 +77,8 @@ for(i in 1:length(liste_data_capteurs)){
   liste_data_capteurs_meteo[[i]] = new_data(meteo, liste_data_capteurs[[i]])
 }
 
-
 # Matrice de corrélation pour chaque variable
+# En utilisant la fonction corrélation_uptime, créons la matrice de corrélation pour chaque capteur
 
 for(i in 1:length(liste_data_capteurs_meteo)){
   corrélation_uptime(liste_data_capteurs_meteo[[i]])
