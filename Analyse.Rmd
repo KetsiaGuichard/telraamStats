@@ -166,3 +166,154 @@ FactoMineR::plot.PCA(ACP2, axes=c(1,2), choix="var")
 
 
 
+
+# Nettoyage de données
+
+```{r}
+# Récupération des données nettoyées avec les paramètres par defaut de Clean_NA_segments
+sensors_cleaned = Clean_NA_segments(sensors)
+
+# Récupération des données nettoyées et ajout des NA aux vehicules
+sensors_cleaned_na = sensors_cleaned %>% mutate(vehicule = ifelse(uptime < 0.5, NA, car+heavy), operation = ifelse(uptime_quality, "original","imputed"))
+```
+
+
+
+# Imputation par EMA (Exponential Moving Average)
+
+```{r}
+# Test sur le capteur 11 (Rue de Prieure: V2)
+
+# Récupérons les données excepté en 2024 (jeu d'entrainement)
+train_data11 = sensors_cleaned_na %>% filter(year(date) < 2024 & segment_name == "Burel-01")
+
+# Récupérons les données de janvier 2024 (jeu de test)
+test_data11 = sensors_cleaned_na %>% filter(year(date) == 2024 & month(date) == 1 & segment_name == "Burel-01")
+
+# Imputation par EMA sur le jeu de données d'entrainement
+
+# Imputation des valeurs manquantes par interpolation cubique (spline)
+train_data11$vehicule_Imputed = zoo::na.spline((train_data11$vehicule), na.rm = FALSE)
+
+
+
+# Combler les valeurs manquantes en début et fin de série // ceci ce fait dans le cas où des données manquates se trouves en début ou fin de série
+#train_data11$vehicule <- zoo::na.fill(train_data11$vehicule, "extend")
+
+# Impuation par EMA
+ema = TTR::EMA(train_data11$vehicule_Imputed, n=3)
+ema = data.frame(date = train_data11$date, predic_ema = ema,  predic_spline= train_data11$vehicule_Imputed, type = train_data11$operation)
+
+
+ema
+
+# Remplacons les valeurs de type "original" de la colonne "predic_spline" dans la zone correspondante de "predic_ema"
+ema$predic_ema = ifelse(ema$type == "original", ema$predic_spline, ema$predic_ema)
+
+ggplot() +
+  geom_point(data = ema, aes(x = date, y = predic_ema, color = type)) +
+  geom_point(data= ema %>% filter(type=="imputed"), aes(x = date, y = predic_spline), color="green") +
+  labs(title = "EMA with Imputed Values",
+       x = "Date",
+       y = "Value",
+       color = "Data Type")
+
+```
+
+
+```{r}
+# data frame avec toutes les données de 2024 de RuePrieure-11
+Train_data = na.omit(train_data11)
+
+# créons une nouvelle colonne (test) en intoduisant 20% de NA
+Train_data$test = Train_data$vehicule
+Train_data$test[sample(1:nrow(Train_data), nrow(Train_data)*0.2)] = NA
+Train_data = Train_data %>% mutate(operation = ifelse(is.na(test), "imputed","original"))
+
+# Imputation par EMA sur le jeu de données d'entrainement
+
+# Imputation des valeurs manquantes par interpolation cubique (spline)
+Train_data$vehicule_Imputed = zoo::na.spline((Train_data$test), na.rm = FALSE)
+
+
+
+# Combler les valeurs manquantes en début et fin de série // ceci ce fait dans le cas où des données manquates se trouves en début ou fin de série
+#train_data11$vehicule <- zoo::na.fill(train_data11$vehicule, "extend")
+
+# Impuation par EMA
+ema_test = TTR::EMA(Train_data$vehicule_Imputed, n=3)
+ema_test = data.frame(date = Train_data$date, predic_ema = ema_test,  predic_spline= Train_data$vehicule_Imputed, type = Train_data$operation, original = Train_data$vehicule)
+
+
+
+
+# Remplacons les valeurs de type "original" de la colonne "predic_spline" dans la zone correspondante de "predic_ema"
+ema_test$predic_ema = ifelse(ema_test$type == "original", ema_test$predic_spline, ema_test$predic_ema)
+
+ema_test %>% filter(type=="imputed")
+```
+
+```{r}
+plot(ema_test$original, type = 'l', col = 'blue', ylim = range(c(ema_test$vehicule, ema_test$predic_ema)), main = "Real vs Predicted (EMA)", xlab = "Time", ylab = "Values")
+lines(ema_test$predic_ema, col = 'red')
+legend("topright", legend = c("Real", "Predicted"), col = c("blue", "red"), lty = 1)
+
+```
+
+```{r}
+plot(ema_test$original, col = "blue",type="l", ylim = range(c(ema_test$vehicule, ema_test$predic_spline)), main = "Real vs Predicted (Spline interpolation)", xlab = "Time", ylab = "Values")
+lines(ema_test$predic_spline, col = "red")
+legend("topright", legend = c("Real", "Predicted"), col = c("blue", "red"), lty = 1)
+```
+
+
+
+```{r}
+plot(ema_test$original, col = as.factor(ema_test$type), ylim = range(c(ema_test$vehicule, ema_test$predic_spline)), main = "Real vs Predicted (Spline interpolation)", xlab = "Time", ylab = "Values")
+lines(ema_test$predic_spline, col = as.factor(ema_test$type))
+#legend("topright", legend = c("Real", "Predicted"), col = c("blue", "red"), lty = 1)
+```
+
+
+
+
+
+
+# Fonction de visu de prédiction EMA et spline sur des données avant 2024
+
+```{r}
+
+# En vert c'est la prédiction par interpolation de spline
+
+visu_predict = function(nom_capteur){
+  
+# Récupérons les données excepté en 2024 (jeu d'entrainement)
+train_data = sensors_cleaned_na %>% filter(year(date) < 2024 & segment_name == nom_capteur)
+
+# Imputation par EMA sur le jeu de données d'entrainement
+
+# Imputation des valeurs manquantes par interpolation cubique (spline)
+train_data$vehicule_Imputed = zoo::na.spline((train_data$vehicule), na.rm = FALSE)
+
+
+
+# Combler les valeurs manquantes en début et fin de série // ceci ce fait dans le cas où des données manquates se trouves en début ou fin de série
+#train_data11$vehicule <- zoo::na.fill(train_data11$vehicule, "extend")
+
+# Impuation par EMA
+ema = TTR::EMA(train_data$vehicule_Imputed, n=3)
+ema = data.frame(date = train_data$date, predic_ema = ema,  predic_spline= train_data$vehicule_Imputed, type = train_data$operation)
+
+
+p <- ggplot() +
+  geom_point(data = ema, aes(x = date, y = predic_ema, color = type)) +
+  geom_point(data= ema %>% filter(type=="imputed"), aes(x = date, y = predic_spline), color="green") +
+  labs(title = "EMA with Imputed Values",
+       x = "Date",
+       y = "Value",
+       color = "Data Type")
+return(p)
+}
+
+visu_predict("BoulevardLiberté-18")
+```
