@@ -27,7 +27,7 @@ filter_demand_user(
 
 \item{vacation_choice}{Character vector. Selected vacation. Full period by default (NULL).}
 
-\item{holiday_choise}{Boolean. Selected holiday.  Full period by default (NULL).}
+\item{holiday_choice}{Boolean. Selected holiday.  Full period by default (NULL).}
 }
 \value{
 enriched_data

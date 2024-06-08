@@ -42,10 +42,10 @@ retrieve_missing_data<- function(enriched_data,
     #Inactivity Period
     enriched_data <- enriched_data %>%
       mutate(
-        heavy_NA = heavy,
-        car_NA = car,
-        bike_NA = bike,
-        pedestrian_NA = pedestrian
+        heavy_NA = .data$heavy,
+        car_NA = .data$car,
+        bike_NA = .data$bike,
+        pedestrian_NA = .data$pedestrian
       )
 
     replace_inactivity_period(enriched_data,successive_day,uptime_choice)
@@ -75,9 +75,17 @@ retrieve_missing_hours<-function(enriched_data,uptime_choice)
                                ifelse(month(enriched_data$date) %in% c(6,7,8), "Summer",
                                       ifelse(month(enriched_data$date) %in% c(9,10,11), "Autumn", "Winter")))
 
-  df_season<-enriched_data %>% group_by(segment_id,season,hour) %>% summarise(condition=any(car!=0 & uptime>uptime_choice))
+  df_season<-enriched_data %>%
+    group_by(.data$segment_id,
+             .data$season,
+             .data$hour) %>%
+    summarise(condition=any(.data$car!=0 & .data$uptime>uptime_choice))
 
-  enriched_data <- enriched_data %>% semi_join(df_season %>% filter(condition), by = c("segment_id","season", "hour"))
+  enriched_data <- enriched_data %>%
+    semi_join(df_season %>%
+                filter(.data$condition),
+              by = c("segment_id","season", "hour")
+              )
 
   return(enriched_data)
 }
@@ -118,7 +126,8 @@ replace_inactivity_period<-function (enriched_data,successive_day,uptime_choice)
       if(diff_days>successive_day)
       {
         df_segment <- df_segment %>%
-          mutate_at(vars(heavy_NA, car_NA, bike_NA,pedestrian_NA), ~ ifelse(row_number() %in% j:i, NA,.))
+          mutate_at(vars(.data$heavy_NA, .data$car_NA, .data$bike_NA, .data$pedestrian_NA),
+                    ~ ifelse(row_number() %in% j:i, NA,.))
       }
     }
     list_clear_data[[id]]<-df_segment

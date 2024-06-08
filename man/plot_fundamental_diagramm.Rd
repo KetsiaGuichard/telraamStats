@@ -26,11 +26,11 @@ plot_fundamental_diagramm(
 
 \item{vacation_choice}{Character vector. Selected vacation. Full period by default (NULL).}
 
+\item{holiday_choice}{Boolean. Selected holiday.  Full period by default (NULL).}
+
 \item{segments}{Character vector. Selected road segment, all if NULL (default).}
 
 \item{direction_choice}{Character vector. Selected direction ('rgt','lft'). Both by default (NULL)}
-
-\item{holiday_choise}{Boolean. Selected holiday.  Full period by default (NULL).}
 }
 \value{
 enriched_data

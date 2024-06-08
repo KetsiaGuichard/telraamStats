@@ -7,7 +7,7 @@
 #' @param weekday_choice weekday Character vector. Weekday choosen. Default to the all week.
 #' @param hour_choice Integer vector. Hours choosen, default to the all day.
 #' @param vacation_choice Character vector. Selected vacation. Full period by default (NULL).
-#' @param holiday_choise Boolean. Selected holiday.  Full period by default (NULL).
+#' @param holiday_choice Boolean. Selected holiday.  Full period by default (NULL).
 #' @param direction_choice Character vector. Selected direction ('rgt','lft'). Both by default (NULL)
 #'
 #' @return enriched_data
@@ -95,7 +95,7 @@ plot_fundamental_diagramm <-function(enriched_data,
 #' @param weekday_choice weekday Character vector. Weekday choosen. Default to the all week.
 #' @param hour_choice Integer vector. Hours choosen, default to the all day.
 #' @param vacation_choice Character vector. Selected vacation. Full period by default (NULL).
-#' @param holiday_choise Boolean. Selected holiday.  Full period by default (NULL).
+#' @param holiday_choice Boolean. Selected holiday.  Full period by default (NULL).
 #'
 #' @return enriched_data
 #' @export
@@ -121,7 +121,7 @@ filter_demand_user <- function(enriched_data,
                                holiday_choice)
 {
   if(!is.null(segments))
-  {enriched_data<-enriched_data %>% filter(segment_name %in% segments)}
+  {enriched_data<-enriched_data %>% filter(.data$segment_name %in% segments)}
 
   if(!is.null(date_range))
   {enriched_data<-enriched_data[enriched_data$day>=date[1] & enriched_data$day<= date[2],]}
@@ -130,17 +130,17 @@ filter_demand_user <- function(enriched_data,
   {
     enriched_data$weekday<-tolower(enriched_data$weekday)
     tolower(weekday_choice)
-    enriched_data<-enriched_data %>% filter(weekday %in% weekday_choice)
+    enriched_data<-enriched_data %>% filter(.data$weekday %in% weekday_choice)
   }
 
   if(!is.null(hour_choice))
-  {enriched_data<-enriched_data %>% filter(hour %in% hour_choice)}
+  {enriched_data<-enriched_data %>% filter(.data$hour %in% hour_choice)}
 
   if(!is.null(vacation_choice))
-  {enriched_data<-enriched_data %>% filter(vacation %in% vacation_choice)}
+  {enriched_data<-enriched_data %>% filter(.data$vacation %in% vacation_choice)}
 
   if(!is.null(holiday_choice))
-  {enriched_data<-enriched_data %>% filter(holiday %in% holiday_choice)}
+  {enriched_data<-enriched_data %>% filter(.data$holiday %in% holiday_choice)}
 
   enriched_data$Version<-ifelse(enriched_data$segment_id %in% version_capteur[10:length(version_capteur$Id_Segment),1],2,1)
 
@@ -217,13 +217,13 @@ plot_diagramm <- function(enriched_data, sensor_version = 1, direction_choice=NU
 {
   if(sensor_version==1)
   {
-    plot(ggplot(data = enriched_data, mapping = aes(x = veh_km, y = veh_h, color = weekend)) +
+    plot(ggplot(data = enriched_data, mapping = aes(x = .data$veh_km, y = .data$veh_h, color = .data$weekend)) +
          geom_point(pch = 20) +
          labs(x = 'Concentration', y = 'Debit', title = paste('Segment :', enriched_data$segment_fullname[1])))
-    plot(ggplot(data = enriched_data, mapping = aes(x = veh_km, y = km_h, color = weekend)) +
+    plot(ggplot(data = enriched_data, mapping = aes(x = .data$veh_km, y = .data$km_h, color = .data$weekend)) +
          geom_point(pch = 20) +
          labs(x = 'Concentration', y = 'Vitesse', title = paste('Segment :', enriched_data$segment_fullname[1])))
-    plot(ggplot(data = enriched_data, mapping = aes(x = veh_h, y = km_h, color = weekend)) +
+    plot(ggplot(data = enriched_data, mapping = aes(x = .data$veh_h, y = .data$km_h, color = .data$weekend)) +
          geom_point(pch = 20) +
          labs(x = 'Debit', y = 'Vitesse', title = paste('Segment :', enriched_data$segment_fullname[1])))
   }
@@ -232,28 +232,28 @@ plot_diagramm <- function(enriched_data, sensor_version = 1, direction_choice=NU
   {
     if(direction_choice=='lft')
     {
-      plot(ggplot(data = enriched_data, mapping = aes(x = veh_km_lft, y = veh_h_lft, color = weekend)) +
+      plot(ggplot(data = enriched_data, mapping = aes(x = .data$veh_km_lft, y = .data$veh_h_lft, color = .data$weekend)) +
              geom_point(pch = 20) +
-             labs(x = 'Concentration', y = 'Débit', title = paste('Segment :', enriched_data$segment_fullname[1], ' Left')))
-      plot(ggplot(data = enriched_data, mapping = aes(x = veh_km_lft, y = km_h_lft, color = weekend)) +
+             labs(x = 'Concentration', y = 'Debit', title = paste('Segment :', enriched_data$segment_fullname[1], ' Left')))
+      plot(ggplot(data = enriched_data, mapping = aes(x = .data$veh_km_lft, y = .data$km_h_lft, color = .data$weekend)) +
              geom_point(pch = 20) +
              labs(x = 'Concentration', y = 'Vitesse', title = paste('Segment :', enriched_data$segment_fullname[1], ' Left')))
-      plot(ggplot(data = enriched_data, mapping = aes(x = veh_h_lft, y = km_h_lft, color = weekend)) +
+      plot(ggplot(data = enriched_data, mapping = aes(x = .data$veh_h_lft, y = .data$km_h_lft, color = .data$weekend)) +
              geom_point(pch = 20) +
-             labs(x = 'Concentration', y = 'Débit', title = paste('Segment :', enriched_data$segment_fullname[1],' Left')))
+             labs(x = 'Concentration', y = 'Debit', title = paste('Segment :', enriched_data$segment_fullname[1],' Left')))
     }
 
     else
     {
-      plot(ggplot(data = enriched_data, mapping = aes(x = veh_km_rgt, y = veh_h_rgt, color = weekend)) +
+      plot(ggplot(data = enriched_data, mapping = aes(x = .data$veh_km_rgt, y = .data$veh_h_rgt, color = .data$weekend)) +
              geom_point(pch = 20) +
-             labs(x = 'Concentration', y = 'Débit', title = paste('Segment :', enriched_data$segment_fullname[1], ' Right')))
-      plot(ggplot(data = enriched_data, mapping = aes(x = veh_km_rgt, y = km_h_rgt, color = weekend)) +
+             labs(x = 'Concentration', y = 'Debit', title = paste('Segment :', enriched_data$segment_fullname[1], ' Right')))
+      plot(ggplot(data = enriched_data, mapping = aes(x = .data$veh_km_rgt, y = .data$km_h_rgt, color = .data$weekend)) +
              geom_point(pch = 20) +
              labs(x = 'Concentration', y = 'Vitesse', title = paste('Segment :', enriched_data$segment_fullname[1], ' Right')))
-      plot(ggplot(data = enriched_data, mapping = aes(x = veh_h_rgt, y = km_h_rgt, color = weekend)) +
+      plot(ggplot(data = enriched_data, mapping = aes(x = .data$veh_h_rgt, y = .data$km_h_rgt, color = .data$weekend)) +
              geom_point(pch = 20) +
-             labs(x = 'Débit', y = 'Vitesse', title = paste('Segment :', enriched_data$segment_fullname[1],' Right')))
+             labs(x = 'Debit', y = 'Vitesse', title = paste('Segment :', enriched_data$segment_fullname[1],' Right')))
     }
   }
 
