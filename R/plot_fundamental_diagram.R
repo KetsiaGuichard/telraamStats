@@ -1,5 +1,3 @@
-#' @description
-#' A short description...
 #' Plot three fundamentals diagrams
 #'
 #'
@@ -22,14 +20,12 @@
 #' @examples
 #' plot_fundamental_diagramm(traffic)
 #' plot_fundamental_diagramm(traffic,
-#'                           date_range = c('2022-07-01','2022-09-01'),
-#'                           weekday_choice= c('monday','friday','sunday),
-#'                           hour_choice= c(1,5,10,14,21),
-#'                           vacation_choice=NULL,
-#'                           holiday_choice=TRUE,
-#'                           segments = 'RteVitre-06',
-#'                           direction_choice='rgt')
-
+#'   date_range = c('2022-07-01','2022-09-01'),
+#'   weekday_choice = c('monday','friday','sunday'),
+#'   hour_choice = c(1,5,10,14,21),
+#'   holiday_choice = TRUE,
+#'   segments = 'RteVitre-06',
+#'   direction_choice = 'rgt')
 plot_fundamental_diagramm <-function(enriched_data,
                                       date_range = NULL,
                                       weekday_choice = NULL,
@@ -91,10 +87,7 @@ plot_fundamental_diagramm <-function(enriched_data,
   }
 }
 
-#' @description
-#' A short description...
 #' Filter the dataframe from user's demand
-#'
 #'
 #' @param enriched_data enriched data.frame containing all the data for all your sensors
 #' @param date_range Date vector. example: c('2021-01-01','2022-01-01'). Full period if NULL (default).
@@ -113,15 +106,19 @@ plot_fundamental_diagramm <-function(enriched_data,
 #' @examples
 #' plot_fundamental_diagramm(traffic)
 #' plot_fundamental_diagramm(traffic,
-#'                           date_range = c('2022-07-01','2022-09-01'),
-#'                           weekday_choice= c('monday','friday','sunday),
-#'                           hour_choice= c(1,5,10,14,21),
-#'                           vacation_choice=NULL,
-#'                           holiday_choice=TRUE,
-#'                           segments = 'RteVitre-06')
-
-filter_demand_user<-function (enriched_data,segments,date_range,weekday_choice,hour_choice,
-                               vacation_choice,holiday_choice)
+#'   date_range = c('2022-07-01','2022-09-01'),
+#'   weekday_choice= c('monday','friday','sunday'),
+#'   hour_choice= c(1,5,10,14,21),
+#'   vacation_choice=NULL,
+#'   holiday_choice=TRUE,
+#'   segments = 'RteVitre-06')
+filter_demand_user <- function(enriched_data,
+                               segments,
+                               date_range,
+                               weekday_choice,
+                               hour_choice,
+                               vacation_choice,
+                               holiday_choice)
 {
   if(!is.null(segments))
   {enriched_data<-enriched_data %>% filter(segment_name %in% segments)}
@@ -151,10 +148,7 @@ filter_demand_user<-function (enriched_data,segments,date_range,weekday_choice,h
   return(enriched_data)
 }
 
-#' @description
-#' A short description...
 #' Calculate necessary data to trace the fundamental diagram
-#'
 #'
 #' @param enriched_data enriched data.frame containing all the data for all your sensors
 #' @param sensor_version Integer (1,2). Selected the version of the sensor (data from Telraam). Default to 1.
@@ -167,10 +161,9 @@ filter_demand_user<-function (enriched_data,segments,date_range,weekday_choice,h
 #' @examples
 #' calculate_axes(traffic)
 #' calculate_axes(traffic,
-#'                sensor_version=2,
-#'                direction_choice='rgt')
-
-calculate_axes<-function(enriched_data,sensor_version=1,direction_choice=NULL)
+#'   sensor_version=2,
+#'   direction_choice='rgt')
+calculate_axes <- function(enriched_data, sensor_version = 1, direction_choice=NULL)
 {
   if(sensor_version==1)
   {
@@ -204,10 +197,7 @@ calculate_axes<-function(enriched_data,sensor_version=1,direction_choice=NULL)
   return(enriched_data)
 }
 
-#' @description
-#' A short description...
 #' Plot three fundamentals diagrams
-#'
 #'
 #' @param enriched_data enriched data.frame containing all the data for all your sensors
 #' @param sensor_version Integer (1,2). Selected the version of the sensor (data from Telraam). Default to 1.
@@ -221,23 +211,21 @@ calculate_axes<-function(enriched_data,sensor_version=1,direction_choice=NULL)
 #' @examples
 #' plot_diagramm(traffic)
 #' plot_diagramm(traffic,
-#'               sensor_version=2,
-#'                direction_choice='rgt')
-
-
-plot_diagramm<-function(enriched_data,sensor_version=1,direction_choice=NULL)
+#'   sensor_version=2,
+#'   direction_choice='rgt')
+plot_diagramm <- function(enriched_data, sensor_version = 1, direction_choice=NULL)
 {
   if(sensor_version==1)
   {
     plot(ggplot(data = enriched_data, mapping = aes(x = veh_km, y = veh_h, color = weekend)) +
          geom_point(pch = 20) +
-         labs(x = 'Concentration', y = 'Débit', title = paste('Segment :', enriched_data$segment_fullname[1])))
+         labs(x = 'Concentration', y = 'Debit', title = paste('Segment :', enriched_data$segment_fullname[1])))
     plot(ggplot(data = enriched_data, mapping = aes(x = veh_km, y = km_h, color = weekend)) +
          geom_point(pch = 20) +
          labs(x = 'Concentration', y = 'Vitesse', title = paste('Segment :', enriched_data$segment_fullname[1])))
     plot(ggplot(data = enriched_data, mapping = aes(x = veh_h, y = km_h, color = weekend)) +
          geom_point(pch = 20) +
-         labs(x = 'Débit', y = 'Vitesse', title = paste('Segment :', enriched_data$segment_fullname[1])))
+         labs(x = 'Debit', y = 'Vitesse', title = paste('Segment :', enriched_data$segment_fullname[1])))
   }
 
   else
@@ -271,17 +259,19 @@ plot_diagramm<-function(enriched_data,sensor_version=1,direction_choice=NULL)
 
 }
 
-recons_v85<-function(df)
+#' Reconstitute the v85 by direction from speed_hist_car
+#'
+#' Add two colums in the dataframe : v85_lft and v85_rgt
+#'
+#' @param df to fill
+#'
+#' @return to fill
+#' @export
+#'
+#' @examples
+#' #to fill
+recons_v85 <- function(df)
 {
-  # Input parameter :
-  #       - df: Dataframe
-  # Output parameter :
-  #       - df : Dataframe
-  # Description :
-  #    Reconstitute the v85 by direction from speed_hist_car and add two colums in the dataframe :
-  #       - v85_lft
-  #       - v85_rgt
-
   speed<-c(5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115,120,125)
 
   #Left
