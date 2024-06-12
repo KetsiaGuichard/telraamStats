@@ -52,7 +52,7 @@ retrieve_missing_data<- function(enriched_data,
         pedestrian_NA = pedestrian
       )   
 
-    replace_inactivity_period(enriched_data,successive_day,uptime_choice)
+    enriched_data<-replace_inactivity_period(enriched_data,successive_day,uptime_choice)
   }
     return(enriched_data)
 }
