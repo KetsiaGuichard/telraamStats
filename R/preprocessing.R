@@ -27,7 +27,8 @@ retrieve_missing_data<- function(enriched_data,
                                  date_range = NULL,
                                  segments = NULL,
                                  uptime_choice=0.5,
-                                 successive_day=2)
+                                 successive_day=2,
+                                 retrieve_data=TRUE)
 {
   
   if(!is.null(segments))
@@ -44,15 +45,8 @@ retrieve_missing_data<- function(enriched_data,
     enriched_data<-retrieve_missing_hours(enriched_data,uptime_choice) 
     
     #Inactivity Period
-    enriched_data <- enriched_data %>%
-      mutate(
-        heavy_NA = heavy,
-        car_NA = car,
-        bike_NA = bike,
-        pedestrian_NA = pedestrian
-      )   
+    enriched_data<-replace_inactivity_period(enriched_data,successive_day,uptime_choice,retrieve_data)
 
-    enriched_data<-replace_inactivity_period(enriched_data,successive_day,uptime_choice)
   }
     return(enriched_data)
 }
@@ -111,8 +105,20 @@ retrieve_missing_hours<-function(enriched_data,uptime_choice)
 #'                           uptime_choice=0.3,
 #'                           successive_day=1)
 
-replace_inactivity_period<-function (enriched_data,successive_day,uptime_choice)
+replace_inactivity_period<-function (enriched_data,successive_day,uptime_choice,retrieve_data)
 {
+  if(retrieve_data==FALSE)
+  {
+    enriched_data <- enriched_data %>%
+      mutate(
+        heavy_NA = heavy,
+        car_NA = car,
+        bike_NA = bike,
+        pedestrian_NA = pedestrian
+    )  
+  }
+
+  
   list_clear_data <- list()
   seg_id<-unique(enriched_data$segment_id)
   
@@ -122,15 +128,29 @@ replace_inactivity_period<-function (enriched_data,successive_day,uptime_choice)
     for(i in 1:length(df_segment$car))
     {
       j=i
-      while ((df_segment$car[i]==0 | df_segment$uptime[i]<uptime_choice) & i<length(df_segment$car))
+
+      while ((df_segment$car[i]==0 | df_segment$uptime[i]<uptime_choice | is.na(df_segment$car[i]) )& i<length(df_segment$car))
       {i<-i+1}
       
       diff_days<-abs(as.numeric(difftime(df_segment$day[i], df_segment$day[j], units = "days")))
       
       if(diff_days>successive_day)
       {
-        df_segment <- df_segment %>%
-          mutate_at(vars(heavy_NA, car_NA, bike_NA,pedestrian_NA), ~ ifelse(row_number() %in% j:i, NA,.))
+        if(retrieve_data==TRUE)
+        {
+          df_segment <- df_segment %>%
+            mutate_at(vars(heavy, car, bike,pedestrian,heavy_lft,heavy_rgt,car_lft,
+                           car_rgt,bike_lft,bike_rgt,pedestrian_lft,pedestrian_rgt), 
+                      ~ ifelse(row_number() %in% min(i,j):max(i,j), NA,.))
+        }
+        else
+        {
+        
+          df_segment <- df_segment %>%
+            mutate_at(vars(heavy_NA, car_NA, bike_NA,pedestrian_NA), 
+                      ~ ifelse(row_number() %in% min(i,j):max(i,j), NA,.))
+        }
+
       }
     }
     list_clear_data[[id]]<-df_segment
@@ -145,3 +165,4 @@ replace_inactivity_period<-function (enriched_data,successive_day,uptime_choice)
   
   return(enriched_data)
 }
+
