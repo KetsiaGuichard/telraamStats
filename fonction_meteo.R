@@ -218,10 +218,6 @@ correlation_traffic <- function(complete_data, liste_var_meteo = c("GLO", "T", "
 
 
 
-library(httr)
-library(jsonlite)
-library(readr)
-library(lubridate) # Pour une manipulation plus facile des dates
 
 get_weather_data <- function(start_date, end_date, id_station = "35281001", api_key) {
 
