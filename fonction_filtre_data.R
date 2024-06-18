@@ -307,3 +307,24 @@ stop_sensor<- function(df_init,uptime_choice=0.1,successive_day=2,remove_data=FA
 }
 
 
+quarterly_to_hourly <- function(sensors){
+  sensors  %>% mutate(date = as.POSIXct(date),interval="hourly") %>%
+    select(-car_lft,-car_rgt,-heavy_lft,-heavy_rgt,-bike_lft,-bike_rgt,-pedestrian_lft,-pedestrian_rgt,-uptime,-car,-heavy,-bike,-pedestrian) %>%
+    filter(minute(date) == 0 ) %>%
+    left_join(sensors  %>%
+                group_by(segment_id,day,hour) %>%
+                summarise(uptime = mean(uptime),
+                          vehicle = sum(car + heavy),
+                          car = sum(car),
+                          heavy = sum(heavy),
+                          bike=sum(bike),
+                          pedestrian = sum(pedestrian),
+                          car_lft = sum(car_lft),
+                          car_rgt = sum(car_rgt),
+                          heavy_lft = sum(heavy_lft),
+                          heavy_rgt = sum(heavy_rgt),
+                          bike_lft = sum(bike_lft),
+                          bike_rgt = sum(bike_rgt),
+                          pedestrian_lft = sum(pedestrian_lft),
+                          pedestrian_rgt = sum(pedestrian_rgt)), by =c("segment_id",'day','hour'))
+}
