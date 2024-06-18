@@ -826,19 +826,181 @@ plot(correlation_traffic(new_data(meteo, stop_sensor(NA_Type(sensors, threshold 
 
 
 # Données de nouveaux Capteurs V2
+
+Les données sont enregistrées du 07 Aout 2023 au 16 mai 2024
+
 ```{r}
-quarterly_to_hourly <- function(sensor){
-  sensor  %>% 
-    mutate(date = as.POSIXct(date)) %>%
-      filter(minute(date) == 0 ) %>% left_join(sensor  %>% group_by(segment_id,day,hour) %>%
-            summarise(vehicle = sum(car + heavy), uptime = mean(uptime)), by =c('segment_id','day','hour'))
-                }
-
-sensors_V2 = quarterly_to_hourly(capteurs_V2)
+capteurs_V2 = quarterly_to_hourly(capteurs_V2)
+```
 
 
 
-head((capteurs_V2 %>%  filter(segment_fullname=="9000002156 - Rue Fabien Burel")), 20) 
-head(sensors_V2%>%  filter(segment_fullname=="9000002156 - Rue Fabien Burel"), 20)
+# Nouvelle approche pour l'analyse de l'influence du climat sur la mobilité dans chateaubourg
+## Y'a t-il une différence significative entre la moyenne de véhicule pendant les heures de pluies et les heures de non pluies?
+
+Note: après exploration des données, catégorisation du type de pluie, durant cette période où nous avons les données de capteurs V2, nous n'avons pas eu de forte pluie (seuil de RR1 = 7.6). La plus grande valeur enregistrée étant de 6.1
+
+```{r}
+# Création d'une variable binaire pour les heures de pluies
+
+rm(weather_dat, V2_meteo, test, capteurs_V2)
+V2_meteo = new_data(meteo, stop_sensor(NA_Type(capteurs_V2, threshold = 50), remove_data = TRUE, uptime_choice = 0.5))
+
+V2_meteo = V2_meteo %>% filter(!is.na(V2_meteo$RR1)) %>%  mutate(type_pluie = ifelse(RR1 <= 0.1, "non pluie",
+                                                   ifelse(RR1 >0.1 & RR1 < 2.5 ,"pluie légère",
+                                                    ifelse(RR1 >= 2.5 & RR1 < 7.2, "pluie modérée", "pluie très forte"))))
+
+# Comparaison des moyennes de véhicules pendant les phases de pluie et de non pluie (variable concernée: type_pluie)
+# Creeons un tableau de comparaison des moyennes de véhicules pendant les phases de pluie et de non pluie
+
+# Véhicules
+V2_meteo %>% group_by(type_pluie) %>% summarise(mean_vehicule = mean(vehicule), n = n()) %>% data.frame()
+# Vélos
+V2_meteo %>% group_by(type_pluie) %>% summarise(mean_bike = mean(bike), n = n()) %>% data.frame()
+
+
+
+
+
+
+
+
+
+# Effectuons un test de significativité des moyennes observées
+t.test(V2_meteo$type_pluie)
+
+
+
+seuils = c(0.1, 2.5, 5)
+
+for(i in seuils){
+  tes = (t.test(vehicule ~ pluie, data =  V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie"))))
+  print(tes)
+}
+
+
+
+```
+
+
+
+
+# Comparaison de la moyenne des véhicules en fonction du seuil de pluie
+On considèrera qu'il à plus si pour un seuil fixé, RR1 est supérieur à ce seuil.
+
+```{r}
+
+# Filtrage et catégorisation des données
+V2_meteo <- V2_meteo %>%
+  filter(!is.na(RR1))
+
+# Initialisation des seuils et du tableau pour les résultats
+seuils <- seq(0.1, 6, by = 0.5)
+resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_vehicule = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie"))
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(V2_meteo_mod$pluie)) == 2) {
+    moyennes <- V2_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_vehicule = mean(vehicule, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_vehicule)
+    
+    # Effectuer le test t
+    test_t <- t.test(vehicule ~ pluie, data = V2_meteo_mod)
+    print(test_t)
+    # Ajouter les résultats du test t
+    moyennes <- moyennes %>%
+      mutate(p_value = test_t$p.value)
+    
+    resultats <- rbind(resultats, moyennes)
+  }
+}
+
+# Afficher les résultats
+print(resultats)
+
+# Création du graphique
+ggplot(resultats, aes(x = seuil, y = moyenne_vehicule, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des véhicules en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des véhicules",
+       color = "Condition") +
+  theme_minimal()
+
+```
+
+On rejette l'hypothèse de différence significative entre les moyennes de véhicules lorsqu'il pleut ou non.
+En ce qui concerne les véhicule, la différence de moyenne entre les véhicule est non significative.
+
+
+# Comparaison de la moyenne des vélos en fonction du seuil de pluie
+On considèrera qu'il à plus si pour un seuil fixé, RR1 est supérieur à ce seuil.
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Filtrage et catégorisation des données
+V2_meteo <- V2_meteo %>%
+  filter(!is.na(RR1))
+
+# Initialisation des seuils et du tableau pour les résultats
+seuils <- seq(0.1, 6, by = 0.5)
+resultats2 <- data.frame(seuil = numeric(), condition = character(), moyenne_bike = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie"))
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(V2_meteo_mod$pluie)) == 2) {
+    moyennes <- V2_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_bike = mean(bike, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_bike)
+    
+    # Effectuer le test t
+    test_t <- t.test(bike ~ pluie, data = V2_meteo_mod)
+    print(test_t)
+    # Ajouter les résultats du test t
+    moyennes <- moyennes %>%
+      mutate(p_value = test_t$p.value)
+    
+    resultats2 <- rbind(resultats2, moyennes)
+  }
+}
+
+# Création du graphique
+ggplot(resultats2, aes(x = seuil, y = moyenne_bike, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des vélos en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des vélos",
+       color = "Condition") +
+  theme_minimal()
+
+# Afficher les p-values pour chaque seuil
+print(resultats2 %>% select(seuil, condition, p_value))
+
+```
+
+Pour les seuils considérés allant de 0.1 à 4.1 avec un pas de 0.5 la différence de moyenne de vélos est non significative entre les moments de pluies et de non pluies
+
+La significativité apparait pour les seuils de 4.6 et 5.1 où on observe environ 5 à 6 vélos en différence de moyenne de groupe (valeur de t dans le résultat du t_test)
+
+Et pour 5.6: non significativité
+
+```{r}
+
 ```
 
