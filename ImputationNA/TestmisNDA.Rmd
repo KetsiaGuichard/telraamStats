@@ -181,21 +181,38 @@ df <- data_imput %>% select(y,day_of_month,hour,weekday,month,year,vacation,seas
 
 
 ```{r}
-# Définir les méthodes d'imputation pour chaque variable
-imp_methods <- make.method(df)
-
-# Spécifier la méthode 'cart' pour la variable cible Y
-imp_methods["Y"] <- "cart"
-
-# Appliquer l'imputation avec les méthodes spécifiées
-mice_model <- mice(df, method = imp_methods, m = 5, maxit = 50, seed = 500)
-
-# Vérifier les imputations
-summary(mice_model)
+df <- data_imput %>% select(y,day_of_month,hour,weekday,month,year,vacation,season)
+methodes <- c("mean","cart","pmm","norm.predict")
+for (methode in methodes) {
+  # Recuperer la derniere partie du nom de la méthode (après le mice.impute.)
+  methode <- gsub("mice.impute.", "", methode)
+  tryCatch({
+    # Appliquer l'imputation avec les méthodes spécifiées
+    mice_model <- mice(df, method = methode, m = 5, maxit = 50, seed = 500, printFlag = FALSE)
+    
+    # Calculer la moyenne des MAE sur les differents jeux de données imputés
+    MAE <- 0
+    for (i in 1:5) {
+      df_imputed <- complete(mice_model, i) # Extraction du jeu de données imputées
+      
+      # Calcul de la MAE
+      df_imputed <- df_imputed %>% rename(y_imput = y) %>% mutate(ds = data_imput$ds)
+      df_imputed <- df_imputed %>% right_join(val_reel %>% select(ds, y), by = "ds") %>% mutate(error = abs(y_imput - y))
+      
+      MAE_curr <- df_imputed %>% summarise(MAE = mean(error)) %>% pull(MAE)
+      print(paste(methode, "MAE :", MAE_curr, " pour le jeu de données imputé", i))
+      MAE <- MAE + MAE_curr
+    }
+    MAE <- MAE / 5
+    print(paste("MAE moyen :", MAE, "pour méthode :", methode))
+  }, error = function(e) {
+    print(paste("Erreur pour la méthode :", methode))
+    print(e)
+  })
+}
 
 
 ```
-
 
 
 
