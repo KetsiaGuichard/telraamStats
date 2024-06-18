@@ -825,3 +825,20 @@ plot(correlation_traffic(new_data(meteo, stop_sensor(NA_Type(sensors, threshold 
 ```
 
 
+# Données de nouveaux Capteurs V2
+```{r}
+quarterly_to_hourly <- function(sensor){
+  sensor  %>% 
+    mutate(date = as.POSIXct(date)) %>%
+      filter(minute(date) == 0 ) %>% left_join(sensor  %>% group_by(segment_id,day,hour) %>%
+            summarise(vehicle = sum(car + heavy), uptime = mean(uptime)), by =c('segment_id','day','hour'))
+                }
+
+sensors_V2 = quarterly_to_hourly(capteurs_V2)
+
+
+
+head((capteurs_V2 %>%  filter(segment_fullname=="9000002156 - Rue Fabien Burel")), 20) 
+head(sensors_V2%>%  filter(segment_fullname=="9000002156 - Rue Fabien Burel"), 20)
+```
+
