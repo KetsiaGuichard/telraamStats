@@ -22,13 +22,13 @@
 #' @examples
 #' plot_fundamental_diagram(traffic)
 #' plot_fundamental_diagram(traffic,
-#'                           date_range = c('2022-07-01','2022-09-01'),
-#'                           weekday_choice= c('monday','friday','sunday),
-#'                           hour_choice= c(1,5,10,14,21),
-#'                           vacation_choice=NULL,
-#'                           holiday_choice=TRUE,
-#'                           segments = 'RteVitre-06',
-#'                           direction_choice='rgt')
+#'   date_range = c('2022-07-01','2022-09-01'),
+#'   weekday_choice= c('monday','friday','sunday),
+#'   hour_choice= c(1,5,10,14,21),
+#'   vacation_choice=NULL,
+#'   holiday_choice=TRUE,
+#'   segments = 'RteVitre-06',
+#'   direction_choice='rgt')
 
 plot_fundamental_diagram <-function(enriched_data,
                                       date_range = NULL,
@@ -81,15 +81,20 @@ plot_fundamental_diagram <-function(enriched_data,
 #' @examples
 #' filter_demand_user(traffic)
 #' filter_demand_user(traffic,
-#'                    date_range = c('2022-07-01','2022-09-01'),
-#'                    weekday_choice= c('monday','friday','sunday),
-#'                    hour_choice= c(1,5,10,14,21),
-#'                    vacation_choice=NULL,
-#'                    holiday_choice=TRUE,
-#'                    segments = 'RteVitre-06')
+#'  date_range = c('2022-07-01','2022-09-01'),
+#'  weekday_choice= c('monday','friday','sunday),
+#'  hour_choice= c(1,5,10,14,21),
+#'  vacation_choice=NULL,
+#'  holiday_choice=TRUE,
+#'  segments = 'RteVitre-06')
 
-filter_demand_user<-function (enriched_data,segments,date_range,weekday_choice,hour_choice,
-                               vacation_choice,holiday_choice)
+filter_demand_user<-function (enriched_data,
+                              segments,
+                              date_range,
+                              weekday_choice,
+                              hour_choice,
+                              vacation_choice,
+                              holiday_choice)
 {
   if(!is.null(segments))
   {enriched_data<-enriched_data %>% filter(segment_name %in% segments)}
@@ -128,6 +133,7 @@ filter_demand_user<-function (enriched_data,segments,date_range,weekday_choice,h
 #'
 #'
 #' @examples
+#' reconstitute_v85(traffic)
 #' calculate_axes(traffic)
 
 calculate_axes<-function(enriched_data)
@@ -174,10 +180,11 @@ calculate_axes<-function(enriched_data)
 #' @examples
 #' plot_diagram(traffic)
 #' plot_diagram(traffic,
-#'                direction_choice='rgt') 
+#'  direction_choice='rgt') 
 
 
-plot_diagram<-function(enriched_data,direction_choice=NULL)
+plot_diagram<-function(enriched_data,
+                       direction_choice=NULL)
 {
   if(!("speed_hist_car_lft" %in% colnames(df_seg)))
   {
@@ -235,7 +242,7 @@ plot_diagram<-function(enriched_data,direction_choice=NULL)
 #' @export
 #'
 #' @examples
-#' reconstitute_v85(enriched_data)
+#' reconstitute_v85(traffic)
 
 
 reconstitute_v85<-function(enriched_data)
