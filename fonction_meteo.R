@@ -214,3 +214,88 @@ correlation_traffic <- function(complete_data, liste_var_meteo = c("GLO", "T", "
 # Assurez-vous que complete_data est un data frame contenant les colonnes 'bike', 'vehicule', 'pedestrian', et les variables météorologiques
 # complete_data <- data.frame(bike = rnorm(100), vehicule = rnorm(100), pedestrian = rnorm(100), GLO = rnorm(100), T = rnorm(100), U = rnorm(100), VV = rnorm(100))
 # correlation_traffic(complete_data, c("GLO", "T", "U", "VV"))
+
+
+
+
+library(httr)
+library(jsonlite)
+library(readr)
+library(lubridate) # Pour une manipulation plus facile des dates
+
+get_weather_data <- function(start_date, end_date, id_station = "35281001", api_key) {
+
+  # Convertir les dates en objets date-time pour la vérification
+  start_datetime <- (start_date)
+  end_datetime <- (end_date)
+
+  # Vérifier que l'écart entre les deux dates est inférieur à un an
+  if (difftime(end_datetime, start_datetime, units = "days") >= 365) {
+    stop("Impossible d'avoir des données sur 1 an ou plus")
+  }
+
+  # Construire l'URL de l'API Météo France
+  base_url <- "https://public-api.meteofrance.fr/public/DPClim/v1/commande-station/horaire"
+  id_station <- "35281001"
+  url <- paste0(base_url, "?id-station=", id_station, "&date-deb-periode=", start_date, "T00%3A00%3A00Z&date-fin-periode=", end_date, "T00%3A00%3A00Z")
+
+  cat("URL de requête:", url, "\n")
+
+  # Faire la requête GET avec l'en-tête d'authentification approprié
+  response <- tryCatch({
+    GET(url, add_headers(Accept = "*/*", `apikey` = api_key))
+  }, error = function(e) {
+    cat("Erreur lors de la requête GET:", e$message, "\n")
+    return(NULL)
+  })
+
+  if (is.null(response)) {
+    stop("La requête initiale a échoué.")
+  }
+
+  # Vérifier le statut de la réponse
+  if (status_code(response) == 202) {
+    # Récupérer l'ID de la commande
+    id <- fromJSON(content(response, "text", encoding = "UTF-8"), flatten = TRUE)$elaboreProduitAvecDemandeResponse$return
+
+    # Pause de 10 secondes avant la seconde requête
+    cat("Pause de 7 secondes avant la seconde requête...\n")
+    Sys.sleep(7)
+
+    # Construire l'URL pour télécharger le fichier
+    url2 <- paste0("https://public-api.meteofrance.fr/public/DPClim/v1/commande/fichier?id-cmde=", id)
+
+    cat("URL pour télécharger le fichier:", url2, "\n")
+
+    # Faire la requête pour télécharger le fichier
+    response2 <- tryCatch({
+      GET(url2, add_headers(Accept = "*/*", `apikey` = api_key))
+    }, error = function(e) {
+      cat("Erreur lors de la requête GET pour le fichier:", e$message, "\n")
+      return(NULL)
+    })
+
+    if (is.null(response2)) {
+      stop("La requête pour télécharger le fichier a échoué.")
+    }
+
+    # Vérifier le statut de la réponse
+    if (status_code(response2) == 201) {
+      # Lire le contenu de la réponse comme un fichier CSV
+      content_text <- content(response2, "text", encoding = "UTF-8")
+      con <- textConnection(content_text)
+      data <- read.csv(con, sep = ";", header = TRUE, stringsAsFactors = FALSE, dec = ",")
+      close(con)
+
+      # Retourner les données
+      return(data)
+    } else {
+      stop(paste("Erreur lors du téléchargement du fichier : ", status_code(response2), content(response2, "text")))
+    }
+  } else {
+    stop(paste("Erreur : ", status_code(response), content(response, "text")))
+  }
+}
+
+# Utilisation de la fonction pour récupérer les données météo
+# weather_data <- get_weather_data(start_date = "2024-01-10", end_date =  "2024-01-20", api_key = "your_api_key")

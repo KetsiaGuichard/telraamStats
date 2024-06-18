@@ -317,3 +317,511 @@ return(p)
 
 visu_predict("BoulevardLiberté-18")
 ```
+
+
+# Meilleure présentation de l'analyse du fonctionnement des capteurs en fonction de la météo:
+
+
+```{r, include=FALSE, "Ajout du type de NA"}
+# Ajout de la colonne du type de données manquantes
+
+liste_data_capteurs = list(data_01, data_02, data_04, data_05,data_06, data_07, data_08,data_10, data_11, data_13, data_14, data_15, data_16, data_18)
+
+sensors_type = NA_Type(sensors, threshold = 50)
+
+# Créer une liste de données capteurs avec ajout de la colonne type de NA à partir d'un filtre sur sensors
+
+for(i in 1:length(liste_data_capteurs)){
+    liste_data_capteurs[[i]] =sensors_type %>% filter(segment_name==liste_data_capteurs[[i]]$segment_name[[1]])
+}
+
+
+visu_na(new_data(meteo, liste_data_capteurs[[1]]))
+visu_na(meteo)
+visu_na(liste_data_capteurs[[1]] %>% filter(type==2))
+```
+
+
+
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, "Corrélation chaque capteurs"}
+## Analyse de corrélation des variables météo avec chaque capteur indépendemment.
+
+#On fait le choix de ne rien enlever comme données pour cette première analyse afin de voir l'impact après #suppression de certaines données (les heures de nuit). 
+
+
+
+#Création de liste de données capteur + météo
+
+liste_data_capteurs_meteo <- list()
+
+for(i in 1:length(liste_data_capteurs)){
+  liste_data_capteurs_meteo[[i]] = new_data(meteo, liste_data_capteurs[[i]])
+}
+```
+
+
+
+```{r, echo=FALSE}
+# Matrice de corrélation pour chaque variable
+
+for(i in 1:length(liste_data_capteurs_meteo)){
+ corrélation_uptime(liste_data_capteurs_meteo[[i]], liste_var_selected = c("T", "U", "VV", "RR1", "GLO", "pedestrian", "vehicule"))
+}
+
+```
+
+
+
+# Analyse de corrélation sur les variables météo et l'ensemble des capteurs
+
++ avec filtre des données manquantes de type 2 (faisant varier le seuil definissant le type 2 de 25 à 50 pas de 5) mais sans suppression de données de la nuit
+
+L'objectif étant de constater la nuances du résultat des corrélations avant et après suppression
+
+```{r, echo=FALSE}
+for(i in seq(25, 50, 5)){
+  corrélation_uptime(new_data(meteo, (NA_Type(sensors, threshold = i))) %>% filter(type==2), liste_var_selected = c("T", "U", "VV", "GLO", "pedestrian", "vehicule"))
+}
+```
+
+On remarque que plus on augmente le seuil plus les corrélation diminue mais faiblement
+
+------------------
+
++ avec un filtre sur les valeurs manquantes de type 2 (faisant varier le seuil nous permettant de définir les valeurs manquantes de type 2 de 25 à 50 avec un pas de 5) et suppression des heures de nuit
+
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+for(i in seq(25, 50, 5)){
+  corrélation_uptime(new_data(meteo, stop_sensor(NA_Type(sensors, threshold = i), remove_data = TRUE, uptime_choice = 0.5)) %>% filter(type==2), liste_var_selected = c("T", "U", "VV", "GLO", "pedestrian", "vehicule"))
+}
+
+```
+
+La remarque reste la même que précédemment: plus on augmente le seuil plus les corrélation diminue mais faiblement
+
+
+
+# Analyse de corrélation de l'ensemble des capteurs sans filtre de données manquantes de type 2 mais avec suppression des heures de nuit
+
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+corrélation_uptime(new_data(meteo, stop_sensor(NA_Type(sensors))), liste_var_selected = c("T", "U", "VV", "RR1", "GLO", "pedestrian", "vehicule"))
+```
+
+
+On remarque que les corrélation sont plus faibles que les précédentes (avec un seuil de 50%) ce qui confirme le fait que les données manquantes de type 2 sont plus corrélées avec les variables météo
+
+
+
+# Analyse de corrélation de l'ensemble des capteurs avec un filtre sur les valeurs manquantes de type 2 sans suppression des heures de nuit.
+
+
+```{r, echo=FALSE}
+corrélation_uptime(new_data(meteo, NA_Type(sensors)) %>% filter(type==2), liste_var_selected = c("T", "U", "VV", "RR1", "GLO", "pedestrian", "vehicule"))
+
+```
+
+
+Malgré le fait que l'on conserve les heures de nuit, les corrélations sont toutes autant importantes.
+
+
+---------------
+
+# Même travail en utilisant mes fonctions pour le calcul de corrélation
+
+# Analyse des corrélation du fonctionnement des capteurs avec les variables météo
+
+```{r}
+# Analyse de corrélation des variables météo avec chaque capteur indépendemment avec suppression des heures de nuit
+for(i in seq_along(liste_data_capteurs)){
+ plot(corrélation_uptime(new_data(meteo, stop_sensor(liste_data_capteurs[[i]])) , liste_var_meteo = c("T", "U", "VV", "GLO"))[[2]])
+}
+
+```
+
+De façon générale: corrélation ]0,0.3[
+
+1. Faible relation linéaire positive :
+
+   + Il existe une légère tendance pour laquelle, lorsque le rayonnement global horaire augmente, le fonctionnement du capteur augmente également. Cependant, cette relation est très faible.
+   + La faible valeur de la corrélation signifie que d'autres facteurs pourraient influencer fortement le fonctionnement du capteur, ou que la relation entre le rayonnement global et le fonctionnement du capteur n'est pas principalement linéaire.
+
+Implication pratique :
+
+  +  Le fonctionnement du capteur n'est pas fortement dépendant du rayonnement global horaire. Même en l'absence de périodes nocturnes, d'autres variables non considérées dans l'analyse peuvent jouer un rôle significatif.
+  +  Si l'objectif est de modéliser ou de prédire le fonctionnement du capteur basé uniquement sur le rayonnement global, une faible corrélation indique que ce modèle serait peu précis.
+
+Autres analyses possibles :
+
+  +  Considérer d'autres facteurs ou variables qui pourraient affecter le fonctionnement du capteur pour obtenir une image plus complète.
+  +  Examiner si une transformation des données (logarithmique, quadratique, etc.) ou une autre méthode de corrélation (comme Spearman) révèle des relations non linéaires plus significatives.
+
+
+```{r, message=FALSE}
+# Ajouter la ligne qui présente la tendance global de l'évolution
+
+
+ggplot(new_data(meteo, stop_sensor(liste_data_capteurs[[1]])), aes(x = GLO, y = uptime, color=GLO>54)) +
+  geom_point() +
+  geom_smooth(method = "loess", col="yellow") +
+  labs(title = "Relation entre le rayonnement global et le fonctionnement du capteur",
+       x = "Rayonnement global horaire",
+       y = "Fonctionnement du capteur", subtitle =unique(new_data(meteo, stop_sensor(liste_data_capteurs[[1]]))["segment_name"][[1]]) ) + guides(colour="none")
+
+#new_data(meteo, stop_sensor(liste_data_capteurs[[1]]))["segment_name"][[1]]
+
+ggplot(new_data(meteo, stop_sensor(liste_data_capteurs[[2]])), aes(x = GLO, y = uptime, color=GLO>46 & GLO<200)) +
+  geom_point() +
+  geom_smooth(method = "loess", col="yellow") +
+  labs(title = "Relation entre le rayonnement global et le fonctionnement du capteur",
+       x = "Rayonnement global horaire",
+       y = "Fonctionnement du capteur", subtitle =unique(new_data(meteo, stop_sensor(liste_data_capteurs[[2]]))["segment_name"][[1]]) ) + guides(colour="none")
+
+
+ggplot(new_data(meteo, stop_sensor(liste_data_capteurs[[3]])), aes(x = GLO, y = uptime, color=GLO>56)) +
+  geom_point() +
+  geom_smooth(method = "loess", col="yellow") +
+  labs(title = "Relation entre le rayonnement global et le fonctionnement du capteur",
+       x = "Rayonnement global horaire",
+       y = "Fonctionnement du capteur", subtitle =unique(new_data(meteo, stop_sensor(liste_data_capteurs[[3]]))["segment_name"][[1]]) ) + guides(colour="none")
+```
+
+
+Ces graphes nous présente les tendances générales de l'évolution du fonctionnement des capteurs en fonction d'une des variables météo (ici le rayonnement global horaire).
+
+"La méthode **LOESS** est une technique de lissage non paramétrique utilisée pour estimer une relation entre 2 variables dans une regression non linéaire. Elle est basée sur une régression locale qui consiste à ajuster un modèle de régression linéaire à un sous-ensemble des données. Cela permet de capturer les tendances locales dans les données qui ne seraient pas capturées par une régression linéaire globale.
+
+Ainsi, elle peut s'adapter à des formes de relations complexes et non linéaires sans avoir à spécifier une forme fonctionnelle précise"
+
+Comme interpreté précédemment par les valeurs de corrélation, il existe une légère tendance pour laquelle, lorsque le rayonnement global horaire augmente, le fonctionnement du capteur augmente également. Cependant, cette relation est très faible.
+
+
+```{r}
+# Diagramme en barre pour visualiser l'évolution des corrélations de l'uptime en fonction de GLO
+ggplot(new_data(meteo, stop_sensor(liste_data_capteurs[[1]])), aes(x = GLO, y = uptime, fill = uptime > 0.5)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Relation entre uptime et GLO",
+       x = "GLO",
+       y = "uptime", subtitle =unique(new_data(meteo, stop_sensor(liste_data_capteurs[[1]]))["segment_name"][[1]]) ) +
+  theme_minimal()
+
+ggplot(new_data(meteo, stop_sensor(liste_data_capteurs[[2]])), aes(x = GLO, y = uptime, color=GLO>46 & GLO<200)) +
+  geom_point() +
+  geom_smooth(method = "lm", col="yellow") +
+  labs(title = "Relation entre le rayonnement global et le fonctionnement du capteur",
+       x = "Rayonnement global horaire",
+       y = "Fonctionnement du capteur", subtitle =unique(new_data(meteo, stop_sensor(liste_data_capteurs[[2]]))["segment_name"][[1]]) ) + guides(colour="none")
+
+```
+
+
+
+```{r}
+# Matrice de corrélation pour chaque capteur sans filtre de la nuit
+
+for(i in seq_along(liste_data_capteurs_meteo)){
+ plot(corrélation_uptime(liste_data_capteurs_meteo[[i]])[[2]])
+}
+```
+
+On remarque une augmentation significative des valeurs de corrélation de GLO et uptime. Cela est dû au fait que ces deux variables on un fonctionnement similaire durant les périodes de nuits (valeurs proches ou égales à 0). Pour une étude de la relation entre le fonctionnement de capteur et les variables météo, il est préférable de supprimer ces périodes de nuit(car elles ont une variabilité très faible et ainsi biaise notre analyse).
+
+
+
+Dans la suite de notre analyse, nous allons supprimer ces périodes de nuit pour voir l'impact sur les corrélations.
+
+
+```{r}
+# Matrice de corrélation pour chaque capteur avec filtre sur les NA de type 2
+
+for(i in seq_along(liste_data_capteurs)){
+ plot(corrélation_uptime(new_data(meteo, stop_sensor(liste_data_capteurs[[i]])) %>% filter(type==2))[[2]])
+}
+
+```
+
+
+Notes: Les coefficents de corrélation pour les données manquantes de type 2 (données  dont l'uptime < 0.5 de facon multiple: 50% des capteurs) sont modérées et positives pour le GLO et l'uptime. NA de type 2 => qu'il s'agit des données de capteurs dont l'uptime < 0.5. On peut de ce fait interpreté ces coeffis=cients de la façon suivante: 
+
+Pour ces données, généralement quand le rayonnement horaire augmente, la qualité du fonctionnement des capteurs tend aussi à augmenter. Etant plus ou moins significatives comme valeurs, on est tenté de penser que ces valeurs sont généralement observées pour les données en fin de journées et/ou en début de matinée.
+
+Les capteurs de type V2 ayant de meilleures performances pour certaines heures de soirées et de début de journée, les valeurs des coefficients de corrélation baissent généralement sur ces capteurs là et sont plus significatif sur les V1
+
+
+Suggestion possible: installer des éclairages à proximité des capteurs qui fonctionneront en fin de journée et en début de matinée.
+
+
+```{r}
+ggplot(new_data(meteo, stop_sensor(liste_data_capteurs[[1]])) %>% filter(type==2), aes(x = GLO, y = uptime)) +
+  geom_point(col="blue") +
+  geom_smooth(method = "loess", col="yellow") +
+  labs(title = "Relation entre le rayonnement global et le mauvais fonctionnement du capteur",
+       x = "Rayonnement global horaire",
+       y = "Fonctionnement du capteur", subtitle =unique(new_data(meteo, stop_sensor(liste_data_capteurs[[1]]))["segment_name"][[1]]) ) + guides(colour="none")
+```
+
+
+
+```{r}
+
+for(i in seq_along(liste_data_capteurs)){
+ plot(corrélation_uptime(new_data(meteo, stop_sensor(liste_data_capteurs[[i]])) %>% filter(uptime_quality==TRUE))[[2]])
+}
+```
+
+Interpretation: Il existe une tendance sur les données des capteurs avec un uptime > 0.5: en effet, pour les valeurs traduisant le bon fonctionnement des capteurs, on se rends compte que lorsque les capteurs fonctionnent déjà normalement, un fort taux de rayonnement global horaire conduit à la diminution de la qualité du fonctionnement du capteurs.
+
+
+Question: est ce que les capteurs peuvent être affectées par les variations extrêmes du rayonnement, entrainant un dysfonctionnement pour des valeurs plus ou moins extrêmes?
+
+
+```{r, message=FALSE, warning=FALSE}
+ggplot(new_data(meteo, stop_sensor(liste_data_capteurs[[1]])) %>% filter(uptime_quality==TRUE), aes(x = GLO, y = uptime)) +
+  geom_point(col="blue") +
+  geom_smooth(method = "loess", col="yellow") +
+  labs(title = "Relation entre le rayonnement global et le mauvais fonctionnement du capteur",
+       x = "Rayonnement global horaire",
+       y = "Fonctionnement du capteur", subtitle =unique(new_data(meteo, stop_sensor(liste_data_capteurs[[1]]))["segment_name"][[1]]) ) + guides(colour="none")
+```
+
+Ci dessus: Tendance générale de la qualité du capteur en fonction du taux de rayonnement horaire.
+
+
+```{r}
+for(i in seq_along(liste_data_capteurs)){
+ plot(corrélation_uptime(new_data(meteo, stop_sensor(liste_data_capteurs[[i]])) %>% filter(uptime_quality==FALSE))[[2]])
+}
+```
+
+
+
+
+# Analyse de corrélation sur les variables météo et l'ensemble des capteurs
+
++ avec filtre des données manquantes de type 2 (faisant varier le seuil definissant le type 2 de 25 à 50 pas de 5) mais sans suppression de données de la nuit
+
+L'objectif étant de constater la nuances du résultat des corrélations avant et après suppression
+
+```{r, echo=FALSE}
+for(i in seq(25, 90, 5)){
+  plot(corrélation_uptime(new_data(meteo, (NA_Type(sensors, threshold = i))) %>% filter(type==2))[[2]])
+  paste0("Seuil de ", i, "%")
+  
+}
+
+```
+
+On remarque que plus on augmente le seuil plus les corrélation diminue mais faiblement
+
+------------------
+
++ avec un filtre sur les valeurs manquantes de type 2 (faisant varier le seuil nous permettant de définir les valeurs manquantes de type 2 de 25 à 50 avec un pas de 5) et suppression des heures de nuit
+
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+for(i in seq(25, 50, 5)){
+  plot(corrélation_uptime(new_data(meteo, stop_sensor(NA_Type(sensors, threshold = i), remove_data = TRUE, uptime_choice = 0.5)) %>% filter(type==2), liste_var_meteo = c("T", "U", "VV", "GLO"))[[2]])
+}
+```
+
+La remarque reste la même que précédemment: plus on augmente le seuil plus les corrélation diminue mais faiblement, et à partir d'un certain seuil, les corrélations augmentes.
+
+
+
+# Analyse de corrélation de l'ensemble des capteurs avec suppression des heures de nuit
+
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+plot(corrélation_uptime(new_data(meteo, stop_sensor(NA_Type(sensors))), liste_var_meteo = c("T", "U", "VV", "GLO"))[[2]])
+```
+
+
+
+
+
+
+# Analyse de corrélation de l'ensemble des capteurs avec un filtre sur les valeurs manquantes de type 2 et suppression des heures de nuit.
+
+
+```{r, echo=FALSE}
+plot(corrélation_uptime(new_data(meteo, stop_sensor(NA_Type(sensors), remove_data = TRUE, uptime_choice = 0.5)) %>% filter(type==2), liste_var_meteo = c("T", "U", "VV", "GLO"))[[2]])
+
+```
+
+
+Résultat similaire à l'analyse des capteurs de façon indépendantes: les NA de type 2 sont corrélées positivement au GLO pour ainsi traduire le fait que la qualité de fonctionnement de ces dernières tend à être meilleure pour des valeurs de rayonnement global horaire plus élevées.
+
+
+```{r}
+# Data frame de comparaison des corrélations de l'uptime en fontion de GLO dans des cas spécifiques
+
+df_comparaison_glo1= corrélation_uptime(new_data(meteo, NA_Type(sensors)), liste_var_meteo = c("GLO"))[[1]]
+
+df_comparaison_glo2 = corrélation_uptime(new_data(meteo, stop_sensor(NA_Type(sensors), uptime_choice = 0.5, remove_data = TRUE)), liste_var_meteo = c("GLO"))[[1]]
+
+df_comparaison_glo3 = corrélation_uptime(new_data(meteo, stop_sensor(NA_Type(sensors, threshold = 50), remove_data = TRUE, uptime_choice = 0.5) %>% filter(type==2)), liste_var_meteo = c("GLO"))[[1]]
+
+df_comparaison_glo4 = corrélation_uptime(new_data(meteo, stop_sensor(NA_Type(sensors, threshold = 50), remove_data = TRUE, uptime_choice = 0.5) %>% filter(uptime_quality == FALSE)), liste_var_meteo = c("GLO"))[[1]]
+
+df_comparaison_glo5 = corrélation_uptime(new_data(meteo, stop_sensor(NA_Type(sensors, threshold = 50), remove_data = TRUE, uptime_choice = 0.5) %>% filter(uptime_quality == TRUE)), liste_var_meteo = c("GLO"))[[1]]
+
+# Créer une nouvelle data frame pour la comparaison de ses valeurs
+df_comparaison_glo = rbind(df_comparaison_glo1, df_comparaison_glo2, df_comparaison_glo3, df_comparaison_glo4, df_comparaison_glo5)
+
+
+# modifier les noms des lignes
+df_comparaison_glo[1,1] = "GLO_all_Sensors"
+df_comparaison_glo[2,1] = "GLO_all_Sensors_no_Night"
+df_comparaison_glo[3,1] = "GLO_all_Sensors_no_Night_filter2"
+df_comparaison_glo[4,1] = "GLO_all_Sensors_no_Night_filterFALSE"
+df_comparaison_glo[5,1] = "GLO_all_Sensors_no_Night_filterTRUE"
+
+# Diagramme en barre pour la comparaison des corrélations avec les valeurs de GLO
+ggplot(df_comparaison_glo, aes(x = Variable, y = Correlation, fill = Variable)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Comparaison des corrélations de l'uptime et GLO dans des cas particuliers",
+       x = "Cas particuliers",
+       y = "Valeurs de corrélation") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+   geom_text(aes(label = round(Correlation, 2)), vjust = ifelse(df_comparaison_glo$Correlation>0, 1.4, -0.3), position = position_dodge(width = 0.9))+
+  scale_fill_manual(values = c("green", "red", "yellow", "blue", "purple"))
+```
+
+
+Idée: pourquoi ne pas essayer de construire un modèle basé sur les variables météo qui explique au mieux l'uptime des capteurs?
+
+```{r}
+# Création d'un modèle de prédiction de l'uptime en fonction des variables météo
+
+model1 = lm(uptime ~ T + U + VV + RR1 + GLO, data = new_data(meteo, stop_sensor(NA_Type(sensors, threshold = 50), remove_data = TRUE, uptime_choice = 0.5)))
+
+summary(model1)
+
+
+hist(residuals(model1))
+```
+
+A l'exception de la variable RR1, toutes les autres variables météo sont significatives pour expliquer l'uptime des capteurs. Cependant, la valeur de R2 ajustée obtenue est faible (0.04), ce qui indique que le modèle n'explique que 4% de la variabilité de l'uptime des capteurs qui en soi n'est pas suffisant pour tirer des conclusions significatives. Il semblerait que d'autres variables non considérées dans le modèle puissent jouer un rôle significatif dans l'explication de l'uptime des capteurs. 
+
+Aussi, il s'agit là d'un test de significativité individuelle des variables. Il serait intéressant de tester la significativité globale du modèle.
+
+```{r}
+# Test de significité global du modèle
+
+```
+
+
+```{r}
+model2 = lm(uptime ~ T + U + VV + GLO, data = new_data(meteo, stop_sensor(NA_Type(sensors, threshold = 50), remove_data = TRUE, uptime_choice = 0.5)))
+
+summary(model2)
+
+
+hist(residuals(model2))
+```
+
+
+Ayant extrait la variable RR1 qui fut non significative dans le modele 1, ce nouveau modèle n'explique toujours que 4% de la variabilité de l'uptime des capteurs. Il sera donc nécessaire de considérer d'autres variables pour expliquer l'uptime des capteurs.
+
+```{r}
+# Procedons à des tests de validation de nos modèles
+c(AIC(model1), AIC(model2))
+c(BIC(model1), BIC(model2))
+```
+
+Les valeurs de AIC et BIC sont plus faibles pour le modèle 1 que pour le modèle 2, ce qui indique que le modèle 1 est plus performant que le modèle 2. Cependant, les valeurs de ces critères restent élevées, ce qui indique que les modèles ne sont pas très performants pour expliquer l'uptime des capteurs.
+
+
+```{r}
+summary(lm(uptime ~  T + U + VV + RR1 + GLO + GLO:U + GLO:T, data = new_data(meteo, stop_sensor(NA_Type(sensors, threshold = 50), remove_data = TRUE, uptime_choice = 0.5))))
+
+AIC(lm(uptime ~  T + U + VV + RR1 + GLO + GLO:U + GLO:T, data = new_data(meteo, stop_sensor(NA_Type(sensors, threshold = 50), remove_data = TRUE, uptime_choice = 0.5))))
+```
+
+------------------
+
+
+# Analyse du comportement du trafic en fonction des variables météo
+
+
+# Partie 2: Analyse de corrélation entre les différents modes de transport et les variables météo
+
+```{r}
+for(i in seq_along(liste_data_capteurs)){
+  plot(correlation_traffic(new_data(meteo, stop_sensor(liste_data_capteurs[[i]]))))
+}
+```
+
+
+
+# En semaine
+```{r}
+for(i in seq_along(liste_data_capteurs)){
+  plot(correlation_traffic(new_data(meteo, stop_sensor(liste_data_capteurs[[i]])) %>% filter(weekday!="saturday" & weekday!="sunday")))
+}
+
+#correlation_traffic(new_data(meteo, stop_sensor(liste_data_capteurs[[2]])) %>% filter(weekday=="saturday" | weekday=="sunday"))
+
+```
+
+
+
+# En weekend
+
+```{r}
+for(i in seq_along(liste_data_capteurs)){
+  plot(correlation_traffic(new_data(meteo, stop_sensor(liste_data_capteurs[[i]])) %>% filter(weekday=="saturday" | weekday=="sunday")))
+}
+```
+
+# Période de vacances
+
+```{r}
+for(i in seq_along(liste_data_capteurs)){
+  plot(correlation_traffic(new_data(meteo, stop_sensor(liste_data_capteurs[[i]])) %>% filter(holiday==TRUE)))
+}
+```
+
+
+
+# Période de non vacances
+
+```{r}
+for(i in seq_along(liste_data_capteurs)){
+  plot(correlation_traffic(new_data(meteo, stop_sensor(liste_data_capteurs[[i]])) %>% filter(holiday==FALSE)))
+}
+
+```
+
+
+# Période d'été
+
+```{r}
+for(i in seq_along(liste_data_capteurs)){
+  plot(correlation_traffic(new_data(meteo, stop_sensor(liste_data_capteurs[[ifelse(i==9, 10, i)]])) %>% filter(month(new_data(meteo, stop_sensor(liste_data_capteurs[[ifelse(i==9, 10, i)]]))$date.x) %in% c(6,7,8))))
+}
+```
+
+
+# Période d'hiver
+```{r}
+for(i in seq_along(liste_data_capteurs)){
+  plot(correlation_traffic(new_data(meteo, stop_sensor(liste_data_capteurs[[ifelse(i==i, i, i)]])) %>% filter(month(new_data(meteo, stop_sensor(liste_data_capteurs[[ifelse(i==i, i, i)]]))$date.x) %in% c(12,1,2))))
+}
+```
+
+
+# Comportement global de tous les capteurs
+
+```{r}
+plot(correlation_traffic(new_data(meteo, stop_sensor(NA_Type(sensors, threshold = 50), remove_data = TRUE, uptime_choice = 0.5))))
+
+
+```
+
+
