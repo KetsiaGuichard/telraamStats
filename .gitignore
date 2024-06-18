@@ -1,0 +1,9 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+key.txt
+inst/doc
+/doc/
+/Meta/
+.DS_Store
