@@ -308,8 +308,9 @@ stop_sensor<- function(df_init,uptime_choice=0.1,successive_day=2,remove_data=FA
 
 
 quarterly_to_hourly <- function(sensors){
-  sensors  %>% mutate(date = as.POSIXct(date),interval="hourly") %>%
-    select(-car_lft,-car_rgt,-heavy_lft,-heavy_rgt,-bike_lft,-bike_rgt,-pedestrian_lft,-pedestrian_rgt,-uptime,-car,-heavy,-bike,-pedestrian) %>%
+  sensors  %>% mutate(date = as.POSIXct(date),interval="hourly", segment_name = str_split(segment_fullname, "-", simplify = TRUE)[,2],
+                      holiday = ifelse(public_holiday=="No public holiday", FALSE, TRUE), uptime_quality = ifelse(uptime<0.5, FALSE, TRUE)) %>%
+    select(-car_lft,-car_rgt,-heavy_lft,-heavy_rgt,-bike_lft,-bike_rgt,-pedestrian_lft,-pedestrian_rgt,-uptime,-car,-heavy,-bike,-pedestrian, -public_holiday) %>%
     filter(minute(date) == 0 ) %>%
     left_join(sensors  %>%
                 group_by(segment_id,day,hour) %>%

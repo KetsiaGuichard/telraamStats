@@ -14,7 +14,7 @@ new_data = function(df_meteo, data_mouv){
 
   df_meteo = df_meteo %>% select(id_join, date,GLO,U,VV, T, RR1)   # Sélection des variables pertinentes de météo
 
-  data_mouv = data_mouv %>% mutate(vehicule = car + heavy) %>%  select(date, segment_name, uptime, v85, vacation, holiday, weekday, vehicule, pedestrian, bike, uptime_quality, type)
+  data_mouv = data_mouv %>% mutate(vehicule = car + heavy) #%>%  select(date, segment_name, uptime, v85, vacation, holiday, weekday, vehicule, pedestrian, bike, uptime_quality, type)
 
   # Convertir la chaîne en datetime et spécifier la timezone CEST
   datetime_cest <- lubridate::ymd_hms(data_mouv$date, tz = "Europe/Paris")
@@ -24,10 +24,13 @@ new_data = function(df_meteo, data_mouv){
 
   data_mouv$date = datetime_utc
 
-  data_mouv$id_join = paste0(date(data_mouv$date), "_", hour(data_mouv$date))
+  data_mouv$id_join = paste0(data_mouv$day, "_", data_mouv$hour)
 
+  data_mouv$date = NULL
 
   result = left_join(data_mouv, df_meteo, by="id_join")
+
+  result$id_join = NULL
 
   return(result)
 }
@@ -217,7 +220,11 @@ correlation_traffic <- function(complete_data, liste_var_meteo = c("GLO", "T", "
 
 
 
-
+# Charger les bibliothèques nécessaires
+library(httr)
+library(jsonlite)
+library(dplyr)
+library(lubridate)
 
 get_weather_data <- function(start_date, end_date, id_station = "35281001", api_key) {
 
@@ -294,4 +301,4 @@ get_weather_data <- function(start_date, end_date, id_station = "35281001", api_
 }
 
 # Utilisation de la fonction pour récupérer les données météo
-# weather_data <- get_weather_data(start_date = "2024-01-10", end_date =  "2024-01-20", api_key = "your_api_key")
+# weather_data <- get_weather_data(start_date = "2023-09-07", end_date =  "2024-05-16", api_key = "your api key")
