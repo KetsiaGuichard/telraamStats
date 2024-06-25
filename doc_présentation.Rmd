@@ -1,0 +1,322 @@
+---
+title: "Analyse de pour présentation"
+author: "Kevin"
+date: 19/06/2024
+output:
+  rmdformats::downcute:
+    logo: logo.jpg
+    favicon: logo.jpg
+    downcute_theme: chaos
+    highlight: tango
+    number_sections: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, message=FALSE, include=FALSE,warning=FALSE, "Import autre fichiers"}
+source("fonction_meteo.R")
+source("Import_Data.R")
+source("fonction_filtre_data.R")
+library(data.table)
+```
+
+
+
+
+
+
+
+
+
+# Nouvelle approche pour l'analyse de l'influence du climat sur la mobilité dans chateaubourg
+
+Nous allons tout d'abord nous intéresser au comportement du traffic lorsque l'on fait varier le seuil de précipitation.
+
+## Y'a t-il une différence significative entre la moyenne de véhicule pendant les heures de pluies et les heures de non pluies?
+
+Note: plus un seuil est élevé, plus l'heure considérée pluvieuse aura enregistré une quantité importante de pluie.
+
+
+
+On considèrera qu'il à plus si pour un seuil fixé, RR1 est supérieur à ce seuil.
+
+Pour le test de significativité entre moyennes, nous disposons de deux options: 
+
++ le test t de Student et le test de Wilcoxon-Mann-Whitney. Le test t de Student est plus approprié pour les données normalement distribuées avec égalité de variances des 2 échantillons (par un test de Fisher: var.test()) 
+
++ Le test de Wilcoxon-Mann-Whitney est plus approprié pour les données non normalement distribuées ou encore normalement distribuées mais avec des variances différentes.
+
+Ainsi, nous pouvons simplement tester l'hypothèse d'égalité de variance pour pouvoir choisir le test approprié.
+   
+  *Après explorations, pour tous les seuils considérés, il n'y a pas de distribution normal de nos données (QQ-plot), de ce fait, on optera pour le test de Wilcoxon-Mann-Whitney*
+    
+  *Pour la suite, nous présenterons d'une part un tableau récapitulatif des p-value pour chaque seuil et d'autre part, un graphique de l'évolution de la moyenne des véhicules en fonction du seuil de pluie.*
+    
+**Note**: 
+    
+  + p-value < 0.05 => différence significative entre les moyennes des véhicules des deux groupes (périodes de pluie et de non pluie)
+    
+  + p-value > 0.05 => pas de différence significative entre les moyennes des véhicules des deux groupes (périodes de pluie et de non pluie)
+
+
+## Comparaison de la moyenne des véhicules en fonction du seuil de pluie sur les données des capteurs V2
+
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE}
+# Import des données des capteurs V2
+
+capteurs_V2 = quarterly_to_hourly(capteurs_V2)
+V2_meteo = new_data(meteo, stop_sensor(capteurs_V2, remove_data = TRUE, uptime_choice = 0.5))
+
+# Filtrage et catégorisation des données
+V2_meteo <- V2_meteo %>%
+  filter(!is.na(RR1))
+
+# Initialisation des seuils et du tableau pour les résultats
+seuils <- seq(0.1, 5, by = 0.5)
+resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_vehicule = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie"))
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(V2_meteo_mod$pluie)) == 2) {
+    moyennes <- V2_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_vehicule = mean(vehicule, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_vehicule)
+    
+    # Effectuer le test t
+    test_w <- wilcox.test(vehicule ~ pluie, data = V2_meteo_mod)
+    
+    # Ajouter les résultats du test t
+    moyennes <- moyennes %>%
+      mutate(p_value = test_w$p.value)
+    
+    resultats <- rbind(resultats, moyennes)
+  }
+    
+  
+}
+
+# Afficher les résultats
+print(resultats)
+
+# Création du graphique
+ggplot(resultats, aes(x = seuil, y = moyenne_vehicule, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des véhicules en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des véhicules",
+       color = "Condition") +
+  theme_minimal()
+
+
+
+```
+
+
++ ces résultats suggèrent (statistiquement) qu'il n'y a pas de différence significative entre les moyennes des véhicules des deux groupes (périodes de pluie et de non pluie) à l'exception du seuil 4.6, selon le test de Wilcoxon rank-sum.
+
++ A partir d'un certain seuil de précipitation plus élevé (traduisant le fais qu'on a plus de pluie), on observe que le nombre de véhicule en moyenne pendant les heures de pluie est plus élevé que pendant les heures de non pluie. Cela peut être dû au fait que les gens préfèrent utiliser leur véhicule personnel pour se déplacer lorsqu'il pleut. On s'attendrait à ce que le nombre de vélo diminue pendant les heures de pluie pour ces seuils.
+
+
+
+## Comparaison de la moyenne des vélos en fonction du seuil de pluie par un test de Wilcoxon
+
+
+
+```{r, echo=FALSE,message=FALSE, "Comparaison de la moyenne des vélos en fonction du seuil de pluie par un test de Wilcoxon Capteurs V2"}
+
+# Initialisation du tableau pour les résultats
+
+resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_bike = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie"))
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(V2_meteo_mod$pluie)) == 2) {
+    moyennes <- V2_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_bike = mean(bike, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_bike)
+    
+    # Effectuer le test t
+    test_w <- wilcox.test(bike ~ pluie, data = V2_meteo_mod)
+    
+    # Ajouter les résultats du test t
+    moyennes <- moyennes %>%
+      mutate(p_value = test_w$p.value)
+    
+    resultats <- rbind(resultats, moyennes)
+  }
+}
+
+
+
+# Afficher les p-values pour chaque seuil
+print(resultats %>% select(seuil, condition, p_value))
+
+# Création du graphique
+ggplot(resultats, aes(x = seuil, y = moyenne_bike, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des vélos en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des vélos",
+       color = "Condition") +
+  theme_minimal()
+
+
+```
+
+
++ ces résultats suggèrent (statistiquement) qu'il y a une différence significative entre les moyennes des vélos des deux groupes (périodes de pluie et de non pluie) jusqu'au seuil 2.6 et après plus de différence significative. 
+
+Toutefois, en observant le graphique, la différence de moyenne est plus grande à partir de 2.6, de ce fait on s'attendrait toujours à avoir une différence significative. Ce resultat contradictoire peut être dû au fait qu'à partir du seuil 2.6, le group des heures pluvieuses ne dispose pas de suffisamment de données pour effectuer une comparaison significative et ainsi la puissance du test de Wilcoxon est moins forte.
+
+
++ Toutefois, de l'analyse des moyennes de véhicules, on s'attendait à une diminution de la moyenne de vélos pendant les pluies pour les seuils à partir de 2.6; ce qui est le cas, mais cette moyenne de vélos augmente par la suite.
+
+
+
+# Test sur les données de l'ensemble des capteurs V1 et V2
+
+## Comparaison des moyennes de véhicules en fonction de seuils de précipitation (V1 et V2)
+
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE}
+sensors_meteo = new_data(meteo, stop_sensor(sensors, remove_data = TRUE, uptime_choice = 0.5))
+
+```
+
+
+```{r, echo=FALSE,message=FALSE,"Comparaison des moyennes de véhicules en fonction de seuils de précipitation (V1 et V2)"}
+
+# Filtrage et catégorisation des données
+sensors_meteo <- sensors_meteo %>%
+  filter(!is.na(RR1))
+
+# Initialisation des seuils et du tableau pour les résultats
+seuils <- seq(0.1, 6, by = 0.5)
+resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_vehicule = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  sensors_meteo_mod <- sensors_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie"))
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(sensors_meteo_mod$pluie)) == 2) {
+    moyenne <- sensors_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_vehicule = mean(vehicule, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_vehicule)
+    
+    # Effectuer le test t
+    test_w <- wilcox.test(vehicule ~ pluie, data = sensors_meteo_mod)
+    
+    # Ajouter les résultats du test t
+    moyenne <- moyenne %>%
+      mutate(p_value = test_w$p.value)
+    
+    resultats <- rbind(resultats, moyenne)
+  }
+}
+
+# Afficher les résultats
+print(resultats)
+
+# Création du graphique
+ggplot(resultats, aes(x = seuil, y = moyenne_vehicule, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des véhicules en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des véhicules",
+       color = "Condition") +
+  theme_minimal()
+
+
+```
+
+
+On observe le même comportement et en plus on remarque pour le seuil 5.6 on a une diminution de la moyenne de véhicule pendant la pluie. Cela peut être dû au fait que certains conducteurs par mesure de sécurité lorsqu'il pleut beaucoup préfèrent ne pas sortir avec leur véhicule ou tout simplement se garer à un endroit sûr.
+
+
+## Comparaison des moyennes de vélos en fonction de seuils de précipitation (V1 et V2)
+
+
+```{r, echo=FALSE, message=FALSE,"Comparaison des moyennes de vélos en fonction de seuils de précipitation (V1 et V2)"}
+# Initialisation des seuils et du tableau pour les résultats
+seuils <- seq(0.1, 6, by = 0.5)
+resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_vehicule = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  sensors_meteo_mod <- sensors_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie"))
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(sensors_meteo_mod$pluie)) == 2) {
+    moyenne <- sensors_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_velo = mean(bike, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_velo)
+    
+    # Effectuer le test t
+    test_w <- wilcox.test(bike ~ pluie, data = sensors_meteo_mod)
+   
+    # Ajouter les résultats du test t
+    moyenne <- moyenne %>%
+      mutate(p_value = test_w$p.value)
+    
+    resultats <- rbind(resultats, moyenne)
+  }
+}
+
+# Afficher les résultats
+print(data.table(resultats))
+
+# Création du graphique
+ggplot(resultats, aes(x = seuil, y = moyenne_velo, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des vélos en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des vélos",
+       color = "Condition") +
+  theme_minimal()
+
+```
+
+
+On constate que le comportement pour ces données est complètement opposé à celui des données unique des capteurs V2. Avec des différence significative jusqu'au seuil 2.6.
+
+Pour ces données on remarque que la moyenne de vélo pendant les heures de pluie est plus élevée que pendant les heures de non pluie pour presque tous les seuils de précipitation. 
+
+
+
+
+
+# Conclusion
+
+Après évaluation (enseignants), il a été sugéré de continuer nos analyse avec les données des capteurs V2 uniquement. En effet, les données des capteurs V1 et V2 contienent beaucoup de valeurs abérrantes qui biaisent assez nos conclusions et nous ressort de ce fait des fois des résultats contradictoires ou assez étonnants. 
+
+Aussi, il semble se dégager un certain lien étroit entre le comportement du trafic et les précipitation. On tentera par la suite de mieux ressortir ce lien en utilisant des modèles de machine learning à l'instar des réseaux de neurones ou encore des modèles de séries temporelles tel que ARIMA. On procèdera comme suit: 
+
++ On commencera par une analyse de corrélation entre les variables météorologiques et le nombre de véhicules et de vélos.
++ On effectuera une analyse de régression pour prédire le nombre de véhicules et de vélos en fonction des variables météorologiques.
++ On utilisera des modèles de machine learning pour prédire le nombre de véhicules et de vélos en fonction des variables météorologiques.
++ On utilisera des modèles de séries temporelles pour prédire le nombre de véhicules et de vélos en fonction des variables météorologiques.
+
