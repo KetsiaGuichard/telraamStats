@@ -227,7 +227,7 @@ library(dplyr)
 library(lubridate)
 
 get_weather_data <- function(start_date, end_date, id_station = "35281001", api_key) {
-
+  start = Sys.time()
   # Convertir les dates en objets date-time pour la vérification
   start_datetime <- (start_date)
   end_datetime <- (end_date)
@@ -290,6 +290,8 @@ get_weather_data <- function(start_date, end_date, id_station = "35281001", api_
       data <- read.csv(con, sep = ";", header = TRUE, stringsAsFactors = FALSE, dec = ",")
       close(con)
 
+      end = Sys.time()
+      cat("Temps d'exécution:", end - start, "secondes\n")
       # Retourner les données
       return(data)
     } else {
@@ -298,7 +300,129 @@ get_weather_data <- function(start_date, end_date, id_station = "35281001", api_
   } else {
     stop(paste("Erreur : ", status_code(response), content(response, "text")))
   }
+
 }
 
 # Utilisation de la fonction pour récupérer les données météo
-# weather_data <- get_weather_data(start_date = "2023-09-07", end_date =  "2024-05-16", api_key = "your api key")
+#weather_data <- get_weather_data(start_date = "2023-05-18", end_date =  "2024-05-16", api_key = "eyJ4NXQiOiJZV0kxTTJZNE1qWTNOemsyTkRZeU5XTTRPV014TXpjek1UVmhNbU14T1RSa09ETXlOVEE0Tnc9PSIsImtpZCI6ImdhdGV3YXlfY2VydGlmaWNhdGVfYWxpYXMiLCJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJrZXZpbmtlbkBjYXJib24uc3VwZXIiLCJhcHBsaWNhdGlvbiI6eyJvd25lciI6Imtldmlua2VuIiwidGllclF1b3RhVHlwZSI6bnVsbCwidGllciI6IlVubGltaXRlZCIsIm5hbWUiOiJEZWZhdWx0QXBwbGljYXRpb24iLCJpZCI6MTMyNjcsInV1aWQiOiJkNjU0MWRjOC1jMGY5LTQyYjAtYTk5Zi1hZjgxMDIxMDU1NjQifSwiaXNzIjoiaHR0cHM6XC9cL3BvcnRhaWwtYXBpLm1ldGVvZnJhbmNlLmZyOjQ0M1wvb2F1dGgyXC90b2tlbiIsInRpZXJJbmZvIjp7IjUwUGVyTWluIjp7InRpZXJRdW90YVR5cGUiOiJyZXF1ZXN0Q291bnQiLCJncmFwaFFMTWF4Q29tcGxleGl0eSI6MCwiZ3JhcGhRTE1heERlcHRoIjowLCJzdG9wT25RdW90YVJlYWNoIjp0cnVlLCJzcGlrZUFycmVzdExpbWl0IjowLCJzcGlrZUFycmVzdFVuaXQiOiJzZWMifX0sImtleXR5cGUiOiJQUk9EVUNUSU9OIiwic3Vic2NyaWJlZEFQSXMiOlt7InN1YnNjcmliZXJUZW5hbnREb21haW4iOiJjYXJib24uc3VwZXIiLCJuYW1lIjoiRG9ubmVlc1B1YmxpcXVlc0NsaW1hdG9sb2dpZSIsImNvbnRleHQiOiJcL3B1YmxpY1wvRFBDbGltXC92MSIsInB1Ymxpc2hlciI6ImFkbWluX21mIiwidmVyc2lvbiI6InYxIiwic3Vic2NyaXB0aW9uVGllciI6IjUwUGVyTWluIn1dLCJleHAiOjE3MTk0Nzc5NjcsInRva2VuX3R5cGUiOiJhcGlLZXkiLCJpYXQiOjE3MTk0NzIzNjcsImp0aSI6ImI4ODc4YTE1LTdlYWItNGZkYy1iZDIxLTZiN2YxNjBkODNmNSJ9.mRb5ZV8ViJnzLCmove59gPvb6Y2PG1xp6poEtbXquv586MB9Cxqb3DCuJODhWO3UpDjDMLAf_DsM-J_XBlKtZKL-pJhz2nMVJ7qMXgAcmtKIaqz9kxwRermsT73QFMRoYwpjgccGS0TMlhCmd8CJGyrcj7Hw46hne4XTFvdtM0OZ3BjWy96JzSNn_uPpp5TGdpm16fwUPxwViUDOQhQ6bzo6oS_TD8KGvkn-6spZ3mxnpEkb-jqK3OhLbtKWdGccaNuBs-tGSY_OjszwlOSLJscvbdk11t6QuOt1w3lXjGO4cS7wytj8J0vWZ6BGqxClw-S7z865gnJH930fV3mapA==")
+# Environ 11.40 secondes pour récupérer les données météo pour une année
+
+
+
+
+source("fonctions_utiles.R")
+
+#' Analyse de l'impact de la pluie sur le trafic
+#'
+#' @param data Un data frame contenant les données météo et de trafic
+#' @param seuils Un vecteur numérique des seuils de pluie à tester
+#' @param weekend Logical. TRUE pour analyser uniquement les weekends, FALSE pour les jours de semaine
+#' @param heure_pointe Character. "matin" pour 7h-8h, "soir" pour 17h-18h, ou NULL pour toute la journée
+#' @param vacances Logical. TRUE pour analyser uniquement les périodes de vacances scolaires, FALSE pour hors vacances, NULL pour toutes les périodes
+#'
+#' @return Un graphique combiné montrant l'impact de la pluie sur le trafic des vélos et des véhicules
+#' @export
+#'
+#' @import dplyr
+#' @import ggplot2
+#' @import gridExtra
+analyser_impact_pluie <- function(data, seuils = seq(0.1, 6, by = 0.5),
+                                  weekend = NULL, heure_pointe = NULL, vacances = NULL,
+                                  approche = "moyenne") {
+  # Filtrage des données
+  data_filtre <- data %>%
+    filter(!is.na(RR1))   # Pour avoir une table avec des données de précipitations
+
+  if (!is.null(weekend)) {    # Filtre pour les jours de la semaine (weekend ou non weekend ou toute la semaine)
+
+    if (weekend) {
+      data_filtre <- data_filtre %>%
+        filter(weekday %in% c("Saturday", "Sunday"))
+    } else {
+      data_filtre <- data_filtre %>%
+        filter(weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"))
+    }
+
+  }
+
+  if (!is.null(heure_pointe)) {   # Filtre pour les heures de pointe (matin, soir ou toute la journée)
+    data_filtre <- data_filtre %>%
+      filter(case_when(
+        heure_pointe == "matin" ~ hour %in% 7:8,
+        heure_pointe == "soir" ~ hour %in% 17:18,
+        TRUE ~ TRUE
+      ))
+  }
+
+  if (!is.null(vacances)) {       # Filtre pour les périodes de vacances scolaires
+    data_filtre <- data_filtre %>%
+      filter(holiday == vacances)
+  }
+
+  # Vérification du max de seuil enregistré
+  if (max(data_filtre$RR1) <= 2) {
+    warning("Pas assez de précipitations enregistrées sur cette période pour une analyse")
+    return(NULL)
+  }
+
+  # Vérification de la quantité de données sur la période
+  if (nrow(data_filtre) < 500) {
+    warning("Pas assez de données pour une analyse significative")
+    return(NULL)
+  }
+
+  # Initialisation des tableaux de résultats
+  resultats_velo <- data.frame(seuil = numeric(), condition = character(),
+                               valeur = numeric(), p_value = numeric())
+  resultats_vehicule <- data.frame(seuil = numeric(), condition = character(),
+                                   valeur = numeric(), p_value = numeric())
+
+  # Calcul des moyennes/proportions et des p-values pour chaque seuil
+  for (i in seuils) {
+    data_mod <- data_filtre %>%
+      mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie"))  # Création de la variable pluie
+
+    if (length(unique(data_mod$pluie)) == 2) {
+      if (approche == "moyenne") {
+        resultat_velo <- calculer_moyenne(data_mod, "bike", i)
+        resultat_vehicule <- calculer_moyenne(data_mod, "vehicule", i)
+
+        test_w_velo <- wilcox.test(bike ~ pluie, data = data_mod)
+        test_w_vehicule <- wilcox.test(vehicule ~ pluie, data = data_mod)
+
+        resultat_velo$p_value <- test_w_velo$p.value
+        resultat_vehicule$p_value <- test_w_vehicule$p.value
+      } else if (approche == "proportion") {
+        resultat_velo <- calculer_proportion(data_mod, "bike", i)
+        resultat_vehicule <- calculer_proportion(data_mod, "vehicule", i)
+
+        resultat_velo$p_value <- NA   # Pas de test de proportion (compléter en cas de besoin par un test de proportion)
+        resultat_vehicule$p_value <- NA   # Pas de test de proportion
+      } else {
+        stop("Approche non reconnue. Choisissez 'moyenne' ou 'proportion'.")
+      }
+
+      resultats_velo <- rbind(resultats_velo, resultat_velo)
+      resultats_vehicule <- rbind(resultats_vehicule, resultat_vehicule)
+    }
+  }
+
+  # Création des graphiques
+  p_velo <- creer_graphique(resultats_velo, "vélos", approche)
+  p_vehicule <- creer_graphique(resultats_vehicule, "véhicules", approche)
+
+  # Combinaison des graphiques
+  if (approche == "moyenne") {
+    bar_velo <- creer_barre_significativite(resultats_velo, "Différence")
+    bar_vehicule <- creer_barre_significativite(resultats_vehicule, "Différence")
+    graphique_combine <- gridExtra::grid.arrange(
+      p_velo, p_vehicule, bar_velo, bar_vehicule,
+      ncol = 2, heights = c(3, 1, 3, 1))
+  } else {
+    graphique_combine <- gridExtra::grid.arrange(
+      p_velo, p_vehicule,
+      ncol = 2
+    )
+  }
+  return(graphique_combine)
+}

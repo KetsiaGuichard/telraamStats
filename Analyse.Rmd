@@ -2273,6 +2273,10 @@ Le 1er tableau présente les résultats ( seuils, condition, moyenne et p-value)
 
 ```{r, echo=FALSE, "Comparaison de la moyenne des vélos puis des véhicules en fonction du seuil de pluie pendant les heures d'affluence le matin (7h et 8h) et en semaine"}
 
+# Filtrage et catégorisation des données
+V2_meteo <- V2_meteo %>%
+  filter(!is.na(RR1))
+
 # Initialisation des seuils et du tableau pour les résultats
 seuils <- seq(0.1, 6, by = 0.5)
 resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_vehicule = numeric(), p_value = numeric())
@@ -2354,7 +2358,7 @@ q = ggplot(resultats, aes(x = seuil, y = moyenne_vehicule, color = condition, gr
        color = "Condition") +
   theme_minimal()
 
-gridExtra::grid.arrange(p, q, ncol = 2)
+gridExtra::grid.arrange(p, q, nrow = 2)
 
 
 rm(seuils, resultats, p, q, V2_meteo_mod, test_w, moyenne)
@@ -3672,7 +3676,7 @@ resultats <- data.frame(seuil = numeric(), condition = character(), rapport_vehi
 
 # Calcul des moyennes et des p-values pour chaque seuil
 for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(17, 18) & weekday %in% c("Saturday", "Sunday") & holiday==FALSE)
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(weekday %in% c("Saturday", "Sunday") & holiday==FALSE)
   
   # Vérifier que le facteur de regroupement a exactement 2 niveaux
   if (length(unique(V2_meteo_mod$pluie)) == 2) {
@@ -3714,7 +3718,7 @@ resultats <- data.frame(seuil = numeric(), condition = character(), rapport_vehi
 
 # Calcul des moyennes et des p-values pour chaque seuil
 for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(17, 18) & weekday %in% c("Saturday", "Sunday") & holiday==FALSE)
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(weekday %in% c("Saturday", "Sunday") & holiday==FALSE)
   
   # Vérifier que le facteur de regroupement a exactement 2 niveaux
   if (length(unique(V2_meteo_mod$pluie)) == 2) {
@@ -3759,7 +3763,7 @@ rm(resultats, p, q, seuils, V2_meteo_mod, moyenne, test_w)
 
 # Même analyse en filtrant tout d'abors sur la période non scolaire (holiday=TRUE) et en semaine
 
-## Comparaison de la moyenne des vélos puis des véhicules en fonction du seuil de pluie pendant les heures d'affluence le matin (7h et 8h), en week end et pendant la période non scolaire
+## Comparaison de la moyenne des vélos puis des véhicules en fonction du seuil de pluie pendant les heures d'affluence en week end et pendant la période non scolaire
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 # Initialisation des seuils et du tableau pour les résultats
@@ -3768,7 +3772,7 @@ resultats <- data.frame(seuil = numeric(), condition = character(), rapport_velo
 
 # Calcul des moyennes et des p-values pour chaque seuil
 for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(7, 8) & weekday %in% c("Saturday", "Sunday") & holiday==TRUE)
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(weekday %in% c("Saturday", "Sunday") & holiday==TRUE)
   
   # Vérifier que le facteur de regroupement a exactement 2 niveaux
   if (length(unique(V2_meteo_mod$pluie)) == 2) {
@@ -3809,7 +3813,7 @@ resultats <- data.frame(seuil = numeric(), condition = character(), rapport_vehi
 
 # Calcul des moyennes et des p-values pour chaque seuil
 for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(7, 8) & weekday %in% c("Saturday", "Sunday") & holiday==TRUE)
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(weekday %in% c("Saturday", "Sunday") & holiday==TRUE)
   
   # Vérifier que le facteur de regroupement a exactement 2 niveaux
   if (length(unique(V2_meteo_mod$pluie)) == 2) {
@@ -4116,7 +4120,8 @@ p = ggplot(hourly_proportions, aes(x = day, y = proportion_bike, color = pluie, 
   theme_minimal()+
   theme(axis.text.x = element_text(angle = 90, hjust = 1, colour = col))
 
-q = ggplot(hourly_proportions, aes(x = day, y = proportion_vehicule, color = pluie, group = 1)) +
+q = ggplot(hourly_proportions, aes(x = 
+                                     day, y = proportion_vehicule, color = pluie, group = 1)) +
   geom_point() +
   geom_line() +
   labs(title = "Proportion de véhicules par heure et par condition",
@@ -4133,6 +4138,12 @@ gridExtra::grid.arrange(p, q, ncol = 2)
 rm(days_with_rain, hourly_averages, hourly_proportions, p, q, col)
 ```
 
+
+```{r}
+
+resultat = analyser_impact_pluie2(V2_meteo, weekend = TRUE)
+rm(resultat)
+```
 
 
 
@@ -4192,4 +4203,57 @@ rm(days_with_rain, daily_proportions, p,q)
 
 ```
 
+
+```{r}
+# Ajout de la colonne semaine qui est weekday si c'est un jour de semaine et weekend si c'est un jour de week-end
+V2_meteo <- V2_meteo %>%
+  mutate(semaine = ifelse(weekday %in% c("Saturday", "Sunday"), "weekend", "semaine"))
+
+
+# Regrouper les données par jour et créer une variable jour de pluie
+daily_data <- V2_meteo %>%
+  group_by(season,semaine,day) %>%
+  summarise(total_rr1 = sum(RR1, na.rm = TRUE),
+            total_bike = mean(bike, na.rm = TRUE),
+            total_vehicule = mean(vehicule, na.rm = TRUE),
+            moyenne_trafic = mean(vehicule + bike, na.rm = TRUE), .groups = "keep") %>%
+  mutate(pluie = ifelse(total_rr1 > 5, "pluie", "non pluie"))
+
+# Visualisation de la moyenne de véhicules avec une couleur différente pour les jours de pluie et colorions par weekend/semaine
+ggplot(daily_data, aes(x = day, y = total_vehicule, color = pluie, group=pluie)) +
+  geom_point() +
+  geom_smooth(method = "loess", formula = y~x) +
+  labs(title = "Moyenne de véhicules par jour",
+       x = "Jour",
+       y = "Moyenne de véhicules") +
+  facet_wrap(~season, scales = "free_x") +
+  scale_color_manual(name = "Condition", values = c("non pluie" = "red", "pluie" = "blue")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, colour = ifelse(daily_data$semaine == "weekend", "green", "brown")))
+
+
+
+```
+
+```{r}
+daily_data <- V2_meteo %>%
+  group_by(semaine,season,day) %>%
+  summarise(total_rr1 = sum(RR1, na.rm = TRUE),
+            total_bike = mean(bike, na.rm = TRUE),
+            total_vehicule = mean(vehicule, na.rm = TRUE),
+            moyenne_trafic = mean(vehicule + bike, na.rm = TRUE), .groups = "keep") %>%
+  mutate(pluie = ifelse(total_rr1 > 5, "pluie", "non pluie"))
+
+# Visualisation de la moyenne de véhicules avec une couleur différente pour les jours de pluie
+ggplot(daily_data, aes(x = day, y = total_bike, color = pluie, group=pluie)) +
+    geom_point() +
+  geom_smooth(method = "loess", formula = y~x) +
+  labs(title = "Moyenne de vélos par jour",
+       x = "Jour",
+       y = "Moyenne de véhicules") +
+  facet_wrap(~semaine, scales = "free_x") +
+  scale_color_manual(name = "Condition", values = c("non pluie" = "red", "pluie" = "blue")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
 

@@ -1,7 +1,7 @@
 ---
-title: "Analyse pour présentation 2"
+title: "Analyse pour présentation 3"
 author: "Kevin"
-date: 24/06/2024
+date: "`r Sys.Date()`"
 output:
   rmdformats::downcute:
     logo: logo.jpg
@@ -18,21 +18,26 @@ knitr::opts_chunk$set(comment = "", prompt = TRUE)
 ```
 
 
-```{r, message=FALSE,include=FALSE, warning=FALSE, "Import autre fichiers"}
+```{r, message=FALSE,include=FALSE, warning=FALSE, "1"}
 source("fonction_meteo.R")
 source("Import_Data.R")
 source("fonction_filtre_data.R")
 ```
 
 
-```{r, include=FALSE,message=FALSE, warning=FALSE}
+```{r, include=FALSE,message=FALSE, warning=FALSE, "2"}
 library(data.table)
+library(tidyverse)
 
 # Données capteurs V2
-capteurs_V2 = read.csv("data/20230518_20240517_v2_sensors_extract.csv", sep=",", header=TRUE)
-capteurs_V2 = quarterly_to_hourly(capteurs_V2)
-capteurs_V2 = stop_sensor(capteurs_V2, uptime_choice = 0.5, remove_data = TRUE)
-V2_meteo = new_data(meteo, capteurs_V2)
+#capteurs_V2 = read.csv("data/20230518_20240517_v2_sensors_extract.csv", sep=",", header=TRUE)
+#capteurs_V2 = quarterly_to_hourly(capteurs_V2)
+#capteurs_V2 = stop_sensor(capteurs_V2, uptime_choice = 0.5, remove_data = TRUE)
+#V2_meteo = new_data(meteo, capteurs_V2)
+
+# Ou tout simplement
+
+load("data/V2_meteo.RData")
 ```
 
 
@@ -51,7 +56,7 @@ Nous rappelons qu'ici nous utiliseraons le test de Wilcoxon pour comparer les mo
 Les resultats sont présenté commme suit: Le 1er tableau présente les résultats ( seuils, condition, moyenne et p-value) pour les vélos et le 2ème pour les véhicules et en 3e position nous avons le graphique nous permettant de visualiser l'évolution de la moyenne des vélos et des véhicules en fonction du seuil de pluie.
 
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, comment="", prompt=TRUE, "Comparaison des moyennes de vélos en fonction de seuils de précipitation (V2)"}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, comment="", prompt=TRUE, "3"}
 # Filtrage et catégorisation des données
 V2_meteo <- V2_meteo %>%
   filter(!is.na(RR1))
@@ -84,7 +89,7 @@ for (i in seuils) {
 }
 
 # Afficher les résultats
-print(data.table(resultats))
+print(resultats)
 
 # Création du graphique
 p = ggplot(resultats, aes(x = seuil, y = moyenne_velo, color = condition, group = condition)) +
@@ -156,7 +161,7 @@ rm(seuils, resultats, p, q, V2_meteo_mod, test_w, moyenne)
 Pour cette période, il se peut que depuis l'installation des capteurs V2, il n' y a pas eu beaucoup de précipitations enregistrées entre 7h et 8h en semaine. 
 
 
-```{r, echo=FALSE, "Comparaison pendant les heures d'affluence le matin (7h et 8h) et en semaine"}
+```{r, echo=FALSE, "chunk 4"}
 
 # Initialisation des seuils et du tableau pour les résultats
 seuils <- seq(0.1, 6, by = 0.5)
@@ -250,7 +255,7 @@ Pourquoi?
  + Le matin, les gens se rendent au travail ou à l'école et ont donc encore la possibilité de choisir leur mode de transport.
  + Par contre le soir, lorsqu'il faut rentrer chez soi, ce choix n'est plus possible pour la plupart des gens. La raison pour laquelle on pourrait observer une baisse de la moyenne de vélos par exemple est que ces derniers vont s'abriter en attendant que la pluie cesse. Pour les véhicules, on pourrait observer une hausse de la moyenne car les gens préfèrent rentrer chez eux en voiture lorsqu'il pleut.
 
-```{r, echo=FALSE, "Comparaison pendant les heures d'affluence le SOIR (17h et 18h) et en semaine"}
+```{r, echo=FALSE, "chunk 5"}
 
 # Initialisation des seuils et du tableau pour les résultats
 seuils <- seq(0.1, 6, by = 0.5)
@@ -346,12 +351,12 @@ Intéressant comme résultat. En effet, pour de légères précipitations, on ob
 
 
 
-## Comparaison le matin (7h et 8h) et en week-end
+## Comparaison en week-end
 
-Pour cette période, il se peut que depuis l'installation des capteurs V2, il n' y a pas eu beaucoup de précipitations enregistrées entre 7h et 8h en semaine. 
+En ce qui concerne le week-end, il n'y a pas vraiment d'heure d'affluence précise. Les gens n'ont pas une obligation de déplacement comme en semaine. Les déplacements seront faits en fonction des activités de chacun. Et donc nous allons faire une analyse sans filtre sur les heures.
 
 
-```{r, echo=FALSE, "Comparaison durant les heures d'affluence le matin (7h et 8h) et en semaine"}
+```{r, echo=FALSE, "chunk 6"}
 
 # Initialisation des seuils et du tableau pour les résultats
 seuils <- seq(0.1, 6, by = 0.5)
@@ -359,7 +364,7 @@ resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_velo
 
 # Calcul des moyennes et des p-values pour chaque seuil
 for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(7, 8) & weekday %in% c("Saturday", "Sunday"))
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(weekday %in% c("Saturday"))
   
   # Vérifier que le facteur de regroupement a exactement 2 niveaux
   if (length(unique(V2_meteo_mod$pluie)) == 2) {
@@ -400,7 +405,7 @@ resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_vehi
 
 # Calcul des moyennes et des p-values pour chaque seuil
 for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(7, 8) & weekday %in% c("Saturday", "Sunday"))
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(weekday %in% c("Saturday"))
   
   # Vérifier que le facteur de regroupement a exactement 2 niveaux
   if (length(unique(V2_meteo_mod$pluie)) == 2) {
@@ -443,86 +448,7 @@ rm(seuils, resultats, p, q, V2_meteo_mod, test_w, moyenne)
 
 Ici, on se rend compte qu'on a un comportement différents des resultats obtenus jusqu'à présent. En effet, on observe pour les week-end et le matin, une diminution du trafic lorsqu'il pleut, chez les vélos tout comme chez les véhicules. Cela peut être dû au fait que les gens préfèrent rester chez eux lorsqu'il pleut vu qu'ils n'ont pas d'obligation de se rendre au travail ou à l'école.
 
-## Comparaison le SOIR (17h et 18h) et en week-end.
 
-
-```{r, echo=FALSE, "Comparaison durant les heures d'affluence le SOIR (17h et 18h) et en semaine"}
-
-# Initialisation des seuils et du tableau pour les résultats
-seuils <- seq(0.1, 6, by = 0.5)
-resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_velo = numeric(), p_value = numeric())
-
-# Calcul des moyennes et des p-values pour chaque seuil
-for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(17, 18) & weekday %in% c("Saturday", "Sunday"))
-  
-  # Vérifier que le facteur de regroupement a exactement 2 niveaux
-  if (length(unique(V2_meteo_mod$pluie)) == 2) {
-    moyenne <- V2_meteo_mod %>%
-      group_by(pluie) %>%
-        summarise(moyenne_velo = mean(bike, na.rm = TRUE)) %>%
-          mutate(seuil = i, condition = pluie) %>%
-            select(seuil, condition, moyenne_velo)
-    
-
-    
-    resultats <- rbind(resultats, moyenne)
-  }
-}
-
-
-
-# Création du graphique
-p = ggplot(resultats, aes(x = seuil, y = moyenne_velo, color = condition, group = condition)) +
-  geom_line() +
-  geom_point() +
-    labs(title = "Évolution de la moyenne des vélos en fonction du seuil de pluie",
-       x = "Seuil de pluie (mm)",
-       y = "Moyenne des vélos",
-       color = "Condition") +
-  theme_minimal()
-
-
-# Initialisation des seuils et du tableau pour les résultats
-resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_vehicule = numeric(), p_value = numeric())
-
-# Calcul des moyennes et des p-values pour chaque seuil
-for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(
-    hour %in% c(17, 18) &
-      weekday %in% c("Saturday", "Sunday")
-  )
-  
-  # Vérifier que le facteur de regroupement a exactement 2 niveaux
-  if (length(unique(V2_meteo_mod$pluie)) == 2) {
-    moyenne <- V2_meteo_mod %>%
-      group_by(pluie) %>%
-      summarise(moyenne_vehicule = mean(vehicule, na.rm = TRUE)) %>%
-      mutate(seuil = i, condition = pluie) %>%
-      select(seuil, condition, moyenne_vehicule)
-    
-    
-    resultats <- rbind(resultats, moyenne)
-  }
-}
-
-
-
-# Création du graphique
-q = ggplot(resultats, aes(x = seuil, y = moyenne_vehicule, color = condition, group = condition)) +
-  geom_line() +
-  geom_point() +
-  labs(title = "Évolution de la moyenne des véhicules en fonction du seuil de pluie",
-       x = "Seuil de pluie (mm)",
-       y = "Moyenne des véhicules",
-       color = "Condition") +
-  theme_minimal()
-
-gridExtra::grid.arrange(p, q, ncol = 2)
-
-
-rm(seuils, resultats, p, q, V2_meteo_mod, moyenne)
-```
 
 Pour les seuils de précipitation enregistrés (pas très grand), on observe en soirée de week-end, une augmentation de la moyenne de vélos lorsqu'il pleut en rappelant qu'il ne s'agit pas de forte pluie. Pour les véhicules, le comportement semble ne pas être controlé. Cela peut simplement être dû aux occupations des uns et des autres en week-end.
 
@@ -535,7 +461,7 @@ Pas suffisamment de données pour des résultats interprétables.
 
 ## Comparaison le SOIR (17h et 18h), en semaine et pendant la période scolaire
 
-```{r, echo=FALSE, message=FALSE}
+```{r, echo=FALSE, message=FALSE, "chunk 7"}
 # Initialisation des seuils et du tableau pour les résultats
 seuils <- seq(0.1, 6, by = 0.5)
 resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_velo = numeric(), p_value = numeric())
@@ -625,7 +551,7 @@ rm(resultats, p, q, seuils, V2_meteo_mod, moyenne, test_w)
     
 
 
-On a les mêmes resultats que sur le comportement général sans précision de semaine. On espérait avoir une différence au niveau du comportement le week-end.
+On a les mêmes resultats que sur le comportement que le celui d'en haut où nous n'avions pas fait de filtre sur la semaine. On espérait avoir une différence au niveau du comportement le week-end.
 
 ## Comparaison le matin (7h et 8h), en semaine et pendant la période de vacances
 
@@ -644,7 +570,7 @@ Nous allons de ce fait reporter les même analyse que précédemment en utilisan
 
 ## Comparaison de la proportion des vélos puis des véhicules en fonction du seuil de pluie de façon générale
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, "chunk 8"}
 # Initialisation des seuils et du tableau pour les résultats
 seuils <- seq(0.1, 6, by = 0.5)
 resultats <- data.frame(
@@ -760,7 +686,7 @@ rm(resultats, p, q, seuils, V2_meteo_mod, moyenne)
 Pas suffisamment de données de jours avec des précipitations pour des résultats interprétables.
 
 
-```{r, echo=FALSE, "Comparaison le matin (7h et 8h) et en semaine"}
+```{r, echo=FALSE, "chunk 9"}
 
 # Initialisation des seuils et du tableau pour les résultats
 seuils <- seq(0.1, 6, by = 0.5)
@@ -872,7 +798,7 @@ gridExtra::grid.arrange(p, q, ncol = 2)
 
 
 # suppression des variables qui viennent d'être créées pour libérer de la mémoire
-rm(resultats, p, q, seuils, V2_meteo_mod, moyenne)
+#rm(resultats, p, q, seuils, V2_meteo_mod, moyenne)
 ```
 
 
@@ -881,7 +807,7 @@ rm(resultats, p, q, seuils, V2_meteo_mod, moyenne)
 
 
 
-```{r, echo=FALSE, message=FALSE, "Comparaison de la moyenne des vélos puis des véhicules"}
+```{r, echo=FALSE, message=FALSE, "chunk 10"}
 
 # Initialisation des seuils et du tableau pour les résultats
 seuils <- seq(0.1, 6, by = 0.5)
@@ -889,7 +815,7 @@ resultats <- data.frame(seuil = numeric(), condition = character(), rapport_velo
 
 # Calcul des moyennes et des p-values pour chaque seuil
 for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(7, 8) & weekday %in% c("Saturday", "Sunday"))
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(weekday %in% c("Saturday", "Sunday"))
   
   # Vérifier que le facteur de regroupement a exactement 2 niveaux
   if (length(unique(V2_meteo_mod$pluie)) == 2) {
@@ -923,7 +849,7 @@ resultats <- data.frame(seuil = numeric(), condition = character(), rapport_vehi
 
 # Calcul des moyennes et des p-values pour chaque seuil
 for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(7, 8) & weekday %in% c("Saturday", "Sunday"))
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(weekday %in% c("Saturday", "Sunday"))
   
   # Vérifier que le facteur de regroupement a exactement 2 niveaux
   if (length(unique(V2_meteo_mod$pluie)) == 2) {
@@ -962,164 +888,10 @@ rm(resultats, p, q, seuils, V2_meteo_mod, moyenne)
 
 Pour la quantité de précipitation enregistrée les week-ends, on semble observer un comportement aléatoire du trafic. Des facteurs externes semblent plus influencer le trafic que les précipitations
 
-.
-
-## Comparaison de la proportion pendant les heures d'affluence le SOIR (17h et 18h) et le weekend
-
-```{r, echo=FALSE, message=FALSE}
-# Initialisation des seuils et du tableau pour les résultats
-seuils <- seq(0.1, 6, by = 0.5)
-resultats <- data.frame(seuil = numeric(), condition = character(), rapport_velo = numeric(), p_value = numeric())
-
-# Calcul des moyennes et des p-values pour chaque seuil
-for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(17, 18) & weekday %in% c("Saturday", "Sunday"))
-  
-  # Vérifier que le facteur de regroupement a exactement 2 niveaux
-  if (length(unique(V2_meteo_mod$pluie)) == 2) {
-    moyenne <- V2_meteo_mod %>%
-      group_by(pluie) %>%
-      summarise(total_velo = sum(bike, na.rm = TRUE),
-                total_trafic = sum(vehicule + bike, na.rm = TRUE)) %>%
-      mutate(rapport_velo = total_velo/total_trafic) %>%
-      mutate(seuil = i, condition = pluie) %>%
-      select(seuil, condition, total_velo, rapport_velo)
-    
-    
-    resultats <- rbind(resultats, moyenne)
-  }
-}
-
-
-# Création du graphique
-p = ggplot(resultats, aes(x = seuil, y = rapport_velo, color = condition, group = condition)) +
-  geom_line() +
-  geom_point() +
-  labs(title = "Évolution de la proportion de vélos en fonction du seuil de pluie",
-       x = "Seuil de pluie (mm)",
-       y = "Moyenne des vélos",
-       color = "Condition") +
-  theme_minimal()
-
-
-# Initialisation des seuils et du tableau pour les résultats
-resultats <- data.frame(seuil = numeric(), condition = character(), rapport_vehicule = numeric(), p_value = numeric())
-
-# Calcul des moyennes et des p-values pour chaque seuil
-for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(17, 18) & weekday %in% c("Saturday", "Sunday"))
-  
-  # Vérifier que le facteur de regroupement a exactement 2 niveaux
-  if (length(unique(V2_meteo_mod$pluie)) == 2) {
-    moyenne <- V2_meteo_mod %>%
-      group_by(pluie) %>%
-      summarise(total_vehicule = sum(vehicule, na.rm = TRUE),
-                total_trafic = sum(vehicule + bike, na.rm = TRUE)) %>%
-      mutate(rapport_vehicule = total_vehicule/total_trafic) %>%
-      mutate(seuil = i, condition = pluie) %>%
-      select(seuil, condition, total_vehicule, rapport_vehicule)
-    
-    
-    resultats <- rbind(resultats, moyenne)
-  }
-}
-
-
-# Création du graphique
-q = ggplot(resultats, aes(x = seuil, y = rapport_vehicule, color = condition, group = condition)) +
-  geom_line() +
-  geom_point() +
-  labs(title = "Évolution de la proportion de véhicules en fonction du seuil de pluie",
-       x = "Seuil de pluie (mm)",
-       y = "Moyenne des véhicules",
-       color = "Condition") +
-  theme_minimal()
-
-gridExtra::grid.arrange(p, q, ncol = 2)
-
-# suppression des variables qui viennent d'être créées pour libérer de la mémoire
-rm(resultats, p, q, seuils, V2_meteo_mod, moyenne)
-```
 
 
     Même analyse en filtrant tout d'abors sur la période non scolaire (holiday=TRUE) et en semaine
 
-## Comparaison de la proportion pendant les heures d'affluence le matin (7h et 8h), en week end et pendant la période de vacances
-
-```{r, include=FALSE, message=FALSE, warning=FALSE}
-# Initialisation des seuils et du tableau pour les résultats
-seuils <- seq(0.1, 6, by = 0.5)
-resultats <- data.frame(seuil = numeric(), condition = character(), rapport_velo = numeric(), p_value = numeric())
-
-# Calcul des moyennes et des p-values pour chaque seuil
-for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(7, 8) & weekday %in% c("Saturday", "Sunday") & holiday==TRUE)
-  
-  # Vérifier que le facteur de regroupement a exactement 2 niveaux
-  if (length(unique(V2_meteo_mod$pluie)) == 2) {
-    moyenne <- V2_meteo_mod %>%
-      group_by(pluie) %>%
-      summarise(total_velo = sum(bike, na.rm = TRUE),
-                total_trafic = sum(vehicule + bike, na.rm = TRUE)) %>%
-      mutate(rapport_velo = total_velo/total_trafic) %>%
-      mutate(seuil = i, condition = pluie) %>%
-      select(seuil, condition, total_velo, rapport_velo)
-    
-    
-    resultats <- rbind(resultats, moyenne)
-  }
-}
-
-
-# Création du graphique
-p = ggplot(resultats, aes(x = seuil, y = rapport_velo, color = condition, group = condition)) +
-  geom_line() +
-  geom_point() +
-  labs(title = "Évolution de la proportion de véhicules en fonction du seuil de pluie",
-       x = "Seuil de pluie (mm)",
-       y = "Moyenne des véhicules",
-       color = "Condition") +
-  theme_minimal()
-
-
-resultats <- data.frame(seuil = numeric(), condition = character(), rapport_vehicule = numeric(), p_value = numeric())
-
-# Calcul des moyennes et des p-values pour chaque seuil
-for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(7, 8) & weekday %in% c("Saturday", "Sunday") & holiday==TRUE)
-  
-  # Vérifier que le facteur de regroupement a exactement 2 niveaux
-  if (length(unique(V2_meteo_mod$pluie)) == 2) {
-    moyenne <- V2_meteo_mod %>%
-      group_by(pluie) %>%
-      summarise(total_vehicule = sum(vehicule, na.rm = TRUE),
-                total_trafic = sum(vehicule + bike, na.rm = TRUE)) %>%
-      mutate(rapport_vehicule = total_vehicule/total_trafic) %>%
-      mutate(seuil = i, condition = pluie) %>%
-      select(seuil, condition, total_vehicule, rapport_vehicule)
-    
-    
-    resultats <- rbind(resultats, moyenne)
-  }
-}
-
-
-# Création du graphique
-q = ggplot(resultats, aes(x = seuil, y = rapport_vehicule, color = condition, group = condition)) +
-  geom_line() +
-  geom_point() +
-  labs(title = "Évolution de la proportion de véhicule en fonction du seuil de pluie",
-       x = "Seuil de pluie (mm)",
-       y = "Moyenne des véhicules",
-       color = "Condition") +
-  theme_minimal()
-
-gridExtra::grid.arrange(p, q, ncol = 2)
-
-
-# suppression des variables qui viennent d'être créées pour libérer de la mémoire
-rm(resultats, p, q, seuils, V2_meteo_mod, moyenne)
-```
 
 **Pas suffisamment de données**
 
@@ -1137,7 +909,7 @@ Dans cette nouvelle approche, nous avons décidé de catégoriser les journées 
 
 Nous allons de ce fait, pour chaque jour, catégoriser cette journée et calculer la proportion de vélos et de véhicules. Puis regrouper chaque type de journée et en faire la moyenne.
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
+```{r, echo=FALSE, message=FALSE, warning=FALSE,"chunk 11"}
 # Agréger les données par jour
 
 daily_data <- V2_meteo %>%
@@ -1202,3 +974,639 @@ rm(daily_data, proportions, p, q)
   + **Journées de pluie modérée et plus forte** : La proportion moyenne de véhicules est plus élevée par rapport aux journées sans pluie, mais montre une légère diminution pour les journées de pluie plus forte.
 
 Ces observations suggèrent que la météo a un impact significatif sur les proportions de vélos et de véhicules. Les cyclistes semblent moins enclins à utiliser leurs vélos par temps de pluie modérée à forte, tandis que la proportion de véhicules augmente dans ces conditions.
+
+
+# Plus de détails
+
+Nous pouvons confirmer la tendance générale présentée tout en haut en observant le comportant les jours de pluies et en distinguant le comportement le week-end (**marron**) et en semaine (**vert**).
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, "chunk 12"}
+# Filtrer les jours où il a plu
+days_with_rain <- V2_meteo %>% mutate(pluie = ifelse(RR1 > 1.5, "pluie", "non pluie")) %>% 
+  group_by(day) %>%
+  filter(any(RR1 > 1.5)) %>%
+  ungroup()
+
+# Calculer les moyennes horaires pour chaque condition par jour
+hourly_averages <- days_with_rain %>%
+  group_by(day, pluie) %>%
+  summarise(mean_bike = mean(bike, na.rm = TRUE),
+            mean_vehicule = mean(vehicule, na.rm = TRUE),
+            total_trafic = mean(vehicule + bike, na.rm = TRUE), .groups="keep") %>%
+  ungroup()
+
+# Calculer les proportions horaires pour chaque condition par jour
+hourly_proportions <- hourly_averages %>%
+  mutate(proportion_bike = mean_bike / total_trafic,
+         proportion_vehicule = mean_vehicule / total_trafic)
+
+# Visualisation des proportions moyennes
+col = ifelse(days_with_rain$weekday %in% c("Saturday", "Sunday"), "green", "brown")
+
+p = ggplot(hourly_proportions, aes(x = day, y = proportion_bike, color = pluie, group = 1)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Proportion de vélos par jour et par condition",
+       x = "Jour",
+       y = "Proportion de vélos") +
+  scale_color_manual(name = "Condition", values = c("non pluie" = "red", "pluie" = "blue")) +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, colour = col))
+
+q = ggplot(hourly_proportions, aes(x = day, y = proportion_vehicule, color = pluie, group = 1)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Proportion de véhicules par jour et par condition",
+       x = "Jour",
+       y = "Proportion de véhicules") +
+  scale_color_manual(name = "Condition", values = c("non pluie" = "red", "pluie" = "blue")) +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, colour = col))
+
+gridExtra::grid.arrange(p, q, ncol = 2)
+
+
+# suppression des variables qui viennent d'être créées pour libérer de la mémoire
+rm(days_with_rain, hourly_averages, hourly_proportions, p, q, col)
+```
+
+De façon générale:
+
++ Pour les **Vélos**, on observe que dans la plupart des cas la proportion de vélos est plus basse les weekends de pluie (avec quelques exceptions), tandis qu'en jours de non weekends, on a une sorte d'équilibre dans ce sens où on observe parfois une pluie grande proportion aux heures pluvieuses et parfois une plus grande proportion aux heures non pluvieuses.
+
++ Pour les **véhicules** c'est le comportement inverse qui est observé.
+
+Pour la suite nous allons voir si nous pouvons avoir un comportement particulier sur des capteurs spécifiques, tels que des capteurs intallés sur des **pistes cyclables** et voir aussi les capteurs où on enregistre le plus de données de vélos sur une longue période.
+
+# Analyse sur les rues particulières
+
+
+Nous allons maintenant nous intéresser aux rues possédants des pistes cyclables. Nous allons observer le comportement des vélos et des véhicules sur ces rues en fonction de la météo afin de faire une comparaison avec le comportement général.
+
+
+
+```{r, include=FALSE}
+# Déterminons les dates d'installations des capteurs V2
+for(segment in unique(V2_meteo$segment_name)){
+  print(paste("La date d'installation du capteur V2 sur ", segment, "est le", min(V2_meteo$day[V2_meteo$segment_name == segment])))
+}
+
+unique(V2_meteo$segment_name)
+```
+
+**Tout d'abord visualisons la distribution des vélos sur toutes les rues des capteurs V2**
+
+```{r, echo=FALSE, "chunk 13"}
+# Tout d'abord visualisons la distribution des vélos sur toutes les rues des capteurs V2
+#ggplot(V2_meteo, aes(x = segment_fullname, y = bike)) +
+ # geom_boxplot() +
+  #labs(title = "Distribution des vélos sur toutes les rues des capteurs V2",
+   #    x = "Rues",
+    #   y = "Nombre de vélos") +
+  #theme_minimal() +
+  #theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# A l'aide d'un geom_point et d'un facet wrap
+ggplot(V2_meteo, aes(x = day, y = bike)) +
+  geom_point() +
+  facet_wrap(~segment_fullname) +
+  labs(title = "Nombre de vélos par jour et par rue",
+       x = "Jour",
+       y = "Nombre de vélos") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+
+Remarque importante: La différence de nombre de vélos entre 2 rues voisines (à savoir Boulevard Laennec et Boulevard Laennec2) est très importante: Un énorme flux de vélos est enregistré sur la rue Boulevard Laennec 2 et ce flux est atténué sur la rue suivante. Cela peut être dû à la déviation dans le carrefour juste avant le capteur V2 de la rue Boulevard Laennec.
+
+On remarque que ce ne sont pas les rues avec pistes cyclables (**Rue Prieuré et Rue Pasteur**) qui ont le  plus de vélos. Nous allons donc filtrer les rues possédant des pistes cyclables et observer le comportement des vélos et des véhicules sur ces rues en fonction de la météo.
+Et potentiellement regarder sur les rues ayant le plus de vélos pour étudier aussi leur comportement.
+
+## Rues avec pistes cyclables
+
++ Rue de Prieuré
+
+```{r, include=FALSE}
+# Filtrer les rues possédant des pistes cyclables
+prieure_meteo = V2_meteo %>% filter(segment_name == " Rue du Prieuré ")
+
+```
+
+
+
+```{r, echo=FALSE, message=FALSE, "chunk 19"}
+# Analyse générale
+
+prieure_meteo <- prieure_meteo %>%
+  filter(!is.na(RR1))
+
+# Initialisation des seuils et du tableau pour les résultats
+seuils <- seq(0.1, 6, by = 0.5)
+resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_velo = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  prieure_meteo_mod <- prieure_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie"))
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(prieure_meteo_mod$pluie)) == 2) {
+    moyenne <- prieure_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_velo = mean(bike, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_velo)
+    
+    # Effectuer le test t
+    test_w <- wilcox.test(bike ~ pluie, data = prieure_meteo_mod)
+   
+    # Ajouter les résultats du test t
+    moyenne <- moyenne %>%
+      mutate(p_value = test_w$p.value)
+    
+    resultats <- rbind(resultats, moyenne)
+  }
+}
+
+# Afficher les résultats
+print((resultats))
+
+# Création du graphique
+p = ggplot(resultats, aes(x = seuil, y = moyenne_velo, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des vélos en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des vélos",
+       color = "Condition") +
+  theme_minimal()
+
+
+
+# Initialisation des seuils et du tableau pour les résultats
+seuils <- seq(0.1, 6, by = 0.5)
+resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_vehicule = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  prieure_meteo_mod <- prieure_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie"))
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(prieure_meteo_mod$pluie)) == 2) {
+    moyenne <- prieure_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_vehicule = mean(vehicule, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_vehicule)
+    
+    # Effectuer le test t
+    test_w <- wilcox.test(vehicule ~ pluie, data = prieure_meteo_mod)
+    
+    # Ajouter les résultats du test t
+    moyenne <- moyenne %>%
+      mutate(p_value = test_w$p.value)
+    
+    resultats <- rbind(resultats, moyenne)
+  }
+}
+
+# Afficher les résultats
+print(resultats)
+
+# Création du graphique
+q = ggplot(resultats, aes(x = seuil, y = moyenne_vehicule, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des véhicules en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des véhicules",
+       color = "Condition") +
+  theme_minimal()
+
+
+gridExtra::grid.arrange(p, q, ncol = 2)
+
+# suppression des variables qui ont été créées dans cette section afin de libérer de l'espace mémoire
+rm(seuils, resultats, p, q, prieure_meteo_mod, test_w, moyenne)
+```
+
+
+
+Pratiquement le même comportement que celui observé sur l'ensemble des rues. 
+
+
+## Comparaison des moyenne en heure d'affluence du soir
+
+
+```{r, echo=FALSE, "chunk 14"}
+
+# Initialisation des seuils et du tableau pour les résultats
+seuils <- seq(0.1, 6, by = 0.5)
+resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_vehicule = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  prieure_meteo_mod <- prieure_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(17, 18) & weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"))
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(prieure_meteo_mod$pluie)) == 2) {
+    moyenne <- prieure_meteo_mod %>%
+      group_by(pluie) %>%
+        summarise(moyenne_velo = mean(bike, na.rm = TRUE)) %>%
+          mutate(seuil = i, condition = pluie) %>%
+            select(seuil, condition, moyenne_velo)
+    
+    # Effectuer le test t
+    test_w <- wilcox.test(bike ~ pluie, data = prieure_meteo_mod)
+    
+    # Ajouter les résultats du test t
+    moyenne <- moyenne %>%
+      mutate(p_value = test_w$p.value)
+    
+    resultats <- rbind(resultats, moyenne)
+  }
+}
+
+# Afficher les résultats
+print(resultats)
+
+# Création du graphique
+p = ggplot(resultats, aes(x = seuil, y = moyenne_velo, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+    labs(title = "Évolution de la moyenne des vélos en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des vélos",
+       color = "Condition") +
+  theme_minimal()
+
+
+# Initialisation des seuils et du tableau pour les résultats
+resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_vehicule = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  prieure_meteo_mod <- prieure_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(
+    hour %in% c(17, 18) &
+      weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+  )
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(prieure_meteo_mod$pluie)) == 2) {
+    moyenne <- prieure_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_vehicule = mean(vehicule, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_vehicule)
+    
+    # Effectuer le test t
+    test_w <- wilcox.test(vehicule ~ pluie, data = prieure_meteo_mod)
+    
+    # Ajouter les résultats du test t
+    moyenne <- moyenne %>%
+      mutate(p_value = test_w$p.value)
+    
+    resultats <- rbind(resultats, moyenne)
+  }
+}
+
+# Afficher les résultats
+print(resultats)
+
+# Création du graphique
+q = ggplot(resultats, aes(x = seuil, y = moyenne_vehicule, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des véhicules en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des véhicules",
+       color = "Condition") +
+  theme_minimal()
+
+gridExtra::grid.arrange(p, q, ncol = 2)
+
+
+rm(seuils, resultats, p, q, prieure_meteo_mod, test_w, moyenne)
+```
+
+
+De façon générale, on observe le même comportement que celui observé sur l'ensemble des rues, à l'exception prêt  de l'augmentation de la moyenne de vélos à partir du seuil de 4.6 de précipitation. 
+
+
+## Rue avec le plus de flux de vélos sur une longue période (Burel)
+
+```{r, include=FALSE}
+burel_meteo = V2_meteo %>% filter(segment_name == " Rue Fabien Burel")
+```
+
+
+### Analyse générale des moyennes de vélos et véhicules
+
+
+```{r, echo=FALSE, "chunk 15"}
+# Analyse générale
+# Filtrage et catégorisation des données
+
+burel_meteo <- burel_meteo %>%
+  filter(!is.na(RR1))
+
+# Initialisation des seuils et du tableau pour les résultats
+seuils <- seq(0.1, 6, by = 0.5)
+resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_velo = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  burel_meteo_mod <- burel_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie"))
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(burel_meteo_mod$pluie)) == 2) {
+    moyenne <- burel_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_velo = mean(bike, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_velo)
+    
+    # Effectuer le test t
+    test_w <- wilcox.test(bike ~ pluie, data = burel_meteo_mod)
+   
+    # Ajouter les résultats du test t
+    moyenne <- moyenne %>%
+      mutate(p_value = test_w$p.value)
+    
+    resultats <- rbind(resultats, moyenne)
+  }
+}
+
+# Afficher les résultats
+print((resultats))
+
+# Création du graphique
+p = ggplot(resultats, aes(x = seuil, y = moyenne_velo, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des vélos en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des vélos",
+       color = "Condition") +
+  theme_minimal()
+
+
+
+# Initialisation des seuils et du tableau pour les résultats
+seuils <- seq(0.1, 6, by = 0.5)
+resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_vehicule = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  burel_meteo_mod <- burel_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie"))
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(burel_meteo_mod$pluie)) == 2) {
+    moyenne <- burel_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_vehicule = mean(vehicule, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_vehicule)
+    
+    # Effectuer le test t
+    test_w <- wilcox.test(vehicule ~ pluie, data = burel_meteo_mod)
+    
+    # Ajouter les résultats du test t
+    moyenne <- moyenne %>%
+      mutate(p_value = test_w$p.value)
+    
+    resultats <- rbind(resultats, moyenne)
+  }
+}
+
+# Afficher les résultats
+print(resultats)
+
+# Création du graphique
+q = ggplot(resultats, aes(x = seuil, y = moyenne_vehicule, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des véhicules en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des véhicules",
+       color = "Condition") +
+  theme_minimal()
+
+
+gridExtra::grid.arrange(p, q, ncol = 2)
+
+# suppression des variables qui ont été créées dans cette section afin de libérer de l'espace mémoire
+rm(seuils, resultats, p, q, burel_meteo_mod, test_w, moyenne)
+
+```
+
+
+
+Pratiquement le même comportement que celui observé sur l'ensemble des rues hors mis les de très légères variations sur le comportement des vélos mais qui reste tout du moins non significatif.
+
+
+### Comparaison des moyennes en heure d'affluence du soir
+
+
+```{r, echo=FALSE, "chunk 16"}
+
+# Initialisation des seuils et du tableau pour les résultats
+seuils <- seq(0.1, 6, by = 0.5)
+resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_vehicule = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  burel_meteo_mod <- burel_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(17, 18) & weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"))
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(burel_meteo_mod$pluie)) == 2) {
+    moyenne <- burel_meteo_mod %>%
+      group_by(pluie) %>%
+        summarise(moyenne_velo = mean(bike, na.rm = TRUE)) %>%
+          mutate(seuil = i, condition = pluie) %>%
+            select(seuil, condition, moyenne_velo)
+    
+    # Effectuer le test t
+    test_w <- wilcox.test(bike ~ pluie, data = burel_meteo_mod)
+    
+    # Ajouter les résultats du test t
+    moyenne <- moyenne %>%
+      mutate(p_value = test_w$p.value)
+    
+    resultats <- rbind(resultats, moyenne)
+  }
+}
+
+# Afficher les résultats
+print(resultats)
+
+# Création du graphique
+p = ggplot(resultats, aes(x = seuil, y = moyenne_velo, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+    labs(title = "Évolution de la moyenne des vélos en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des vélos",
+       color = "Condition") +
+  theme_minimal()
+
+
+# Initialisation des seuils et du tableau pour les résultats
+resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_vehicule = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  burel_meteo_mod <- burel_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(
+    hour %in% c(17, 18) &
+      weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+  )
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(burel_meteo_mod$pluie)) == 2) {
+    moyenne <- burel_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_vehicule = mean(vehicule, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_vehicule)
+    
+    # Effectuer le test t
+    test_w <- wilcox.test(vehicule ~ pluie, data = burel_meteo_mod)
+    
+    # Ajouter les résultats du test t
+    moyenne <- moyenne %>%
+      mutate(p_value = test_w$p.value)
+    
+    resultats <- rbind(resultats, moyenne)
+  }
+}
+
+# Afficher les résultats
+print(resultats)
+
+# Création du graphique
+q = ggplot(resultats, aes(x = seuil, y = moyenne_vehicule, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des véhicules en fonction du seuil de pluie",
+       x = "Seuil de pluie (mm)",
+       y = "Moyenne des véhicules",
+       color = "Condition") +
+  theme_minimal()
+
+gridExtra::grid.arrange(p, q, ncol = 2)
+
+
+rm(seuils, resultats, p, q, burel_meteo_mod, test_w, moyenne)
+```
+
+
+Remarque 1: la grosse augmentation de la moyenne de véhicules aux heures pluvieuses, il s'agit bien là d'un axe très fréquenté.
+
+Remarque 2: Le comportement des vélos n'est pas précis, il semble ne pas être très affecté par les précipitations.
+
+
+# Intégrons sur nos graphiques des barres de significativité de la p-value
+
+Il est question de pouvoir directement visualiser sur le graphique les seuils de significativité de la différence des moyennes entre les périodes de pluie et de non pluie. 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, "chunk 17"}
+
+# Filtrage et catégorisation des données
+V2_meteo <- V2_meteo %>%
+  filter(!is.na(RR1))
+
+# Initialisation des seuils et du tableau pour les résultats
+seuils <- seq(0.1, 6, by = 0.5)
+resultats_velo <- data.frame(seuil = numeric(), condition = character(), moyenne_velo = numeric(), p_value = numeric())
+resultats_vehicule <- data.frame(seuil = numeric(), condition = character(), moyenne_vehicule = numeric(), p_value = numeric())
+
+# Calcul des moyennes et des p-values pour chaque seuil
+for (i in seuils) {
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie"))
+  
+  # Vérifier que le facteur de regroupement a exactement 2 niveaux
+  if (length(unique(V2_meteo_mod$pluie)) == 2) {
+    moyenne_velo <- V2_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_velo = mean(bike, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_velo)
+    
+    moyenne_vehicule <- V2_meteo_mod %>%
+      group_by(pluie) %>%
+      summarise(moyenne_vehicule = mean(vehicule, na.rm = TRUE)) %>%
+      mutate(seuil = i, condition = pluie) %>%
+      select(seuil, condition, moyenne_vehicule)
+    
+    # Effectuer le test t
+    test_w_velo <- wilcox.test(bike ~ pluie, data = V2_meteo_mod)
+    test_w_vehicule <- wilcox.test(vehicule ~ pluie, data = V2_meteo_mod)
+   
+    # Ajouter les résultats du test t
+    moyenne_velo <- moyenne_velo %>%
+      mutate(p_value = test_w_velo$p.value)
+    
+    moyenne_vehicule <- moyenne_vehicule %>%
+      mutate(p_value = test_w_vehicule$p.value)
+    
+    resultats_velo <- rbind(resultats_velo, moyenne_velo)
+    resultats_vehicule <- rbind(resultats_vehicule, moyenne_vehicule)
+  }
+}
+
+# Fonction pour créer la barre de significativité
+create_significance_bar <- function(data, max_value, title) {
+  data <- data %>%
+    mutate(significant = case_when(
+      p_value < 0.05 ~ "Significatif",
+      TRUE ~ "Non significatif"
+    ))
+
+  ggplot(data, aes(x = seuil, y = 1, fill = significant)) +
+    geom_tile() +
+    scale_fill_manual(values = c("Significatif" = "red", "Non significatif" = "blue")) +
+    theme_minimal() +
+    theme(
+      axis.title.y = element_blank(),
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank()
+    ) +
+    labs(x = "Seuil de pluie (mm)", fill = title)
+}
+
+# Création des graphiques pour les vélos et les véhicules
+p <- ggplot(resultats_velo, aes(x = seuil, y = moyenne_velo, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des vélos en fonction du seuil de pluie",
+       x = NULL,
+       y = "Moyenne des vélos",
+       color = "Condition") +
+  theme_minimal()
+
+q <- ggplot(resultats_vehicule, aes(x = seuil, y = moyenne_vehicule, color = condition, group = condition)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Évolution de la moyenne des véhicules en fonction du seuil de pluie",
+       x = NULL,
+       y = "Moyenne des véhicules",
+       color = "Condition") +
+  theme_minimal()
+
+# Création des barres de significativité
+bar_velo <- create_significance_bar(resultats_velo, max(resultats_velo$moyenne_velo), "Significativité des vélos")
+bar_vehicule <- create_significance_bar(resultats_vehicule, max(resultats_vehicule$moyenne_vehicule), "Significativité des véhicules")
+
+# Afficher les graphiques et les barres côte à côte
+gridExtra::grid.arrange(p, bar_velo, q, bar_vehicule, ncol = 1, heights = c(3, 1, 3, 1))
+
+```
+
+Comme vous pouvez le constater sur les graphiques ci-dessus, on observe un phénomène étrange.
+Etrange dans ce sens où on a une significativité pour certaines différences de moyennes et pour de plus grandes différence on a une non significativité. Cela peut être dû à la taille de l'échantillon ou à la distribution des données.
+
+
+
