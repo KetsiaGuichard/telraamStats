@@ -120,6 +120,40 @@ Create_test_data_suite <- function(data, num_missing = NA, seed = NA, prop_missi
   list(temoin = temoin, test = test)
 }
 
+Create_test_data_with_na_distribution <- function(data, historical_na_proportion, seed = NA) {
+  if (!is.na(seed)) {
+    set.seed(seed)
+  }
+  if (!"vehicle" %in% colnames(data)) {
+    data <- data %>% mutate(vehicle = car + heavy)
+  }
+  test <- data
+  # Calculer le nombre de valeurs manquantes à introduire
+  na_distribution <- test %>%
+    group_by(segment_name, hour) %>%
+    summarise(nb_obs = n(), .groups = "drop") %>%
+    left_join(historical_na_proportion, by = c("hour"), relationship = "many-to-many") %>%
+    mutate(nb_na = ifelse(nb_obs > 2, ceiling(nb_obs * mean_prop_NA), 0))
+  print(na_distribution)
+  # Afficher le total de NA à introduire
+  cat("Total de NA à introduire:", sum(na_distribution$nb_na, na.rm = TRUE), "\n")
+  # Introduire les valeurs manquantes
+  for (i in 1:nrow(na_distribution)) {
+    seg <- na_distribution$segment_name[i]
+    hr <- na_distribution$hour[i]
+    n_na <- na_distribution$nb_na[i]
+    if (!is.na(n_na) && n_na > 0) {
+      indices <- which(test$segment_name == seg & test$hour == hr)
+      na_indices <- sample(indices, size = min(n_na, length(indices)), replace = FALSE)
+      test$vehicle[na_indices] <- NA
+    }
+  }
+  # Afficher le nombre de NA effectivement introduits
+  cat("Nombre de NA effectivement introduits:", sum(is.na(test$vehicle)), "\n")
+  return(list(temoin = data, test = test))
+}
+
+
 
 quarterly_to_hourly <- function(sensors){
   sensors  %>% mutate(date = as.POSIXct(date),interval="hourly") %>%
@@ -141,5 +175,109 @@ quarterly_to_hourly <- function(sensors){
                           bike_rgt = sum(bike_rgt),
                           pedestrian_lft = sum(pedestrian_lft),
                           pedestrian_rgt = sum(pedestrian_rgt)), by =c("segment_id",'day','hour'))
+}
+
+
+get_weather_data <- function(start_date, end_date, id_station = "35281001", api_key) {
+  library(httr)
+  library(jsonlite)
+  # Convertir les dates en objets date-time pour la vérification
+  start_datetime <- (start_date)
+  end_datetime <- (end_date)
+
+  # Vérifier que l'écart entre les deux dates est inférieur à un an
+  if (difftime(end_datetime, start_datetime, units = "days") >= 365) {
+    stop("Impossible d'avoir des données sur 1 an ou plus")
+  }
+
+  # Construire l'URL de l'API Météo France
+  base_url <- "https://public-api.meteofrance.fr/public/DPClim/v1/commande-station/horaire"
+  id_station <- "35281001"
+  url <- paste0(base_url, "?id-station=", id_station, "&date-deb-periode=", start_date, "T00%3A00%3A00Z&date-fin-periode=", end_date, "T00%3A00%3A00Z")
+
+  cat("URL de requête:", url, "\n")
+
+  # Faire la requête GET avec l'en-tête d'authentification approprié
+  response <- tryCatch({
+    GET(url, add_headers(Accept = "*/*", `apikey` = api_key))
+  }, error = function(e) {
+    cat("Erreur lors de la requête GET:", e$message, "\n")
+    return(NULL)
+  })
+
+  if (is.null(response)) {
+    stop("La requête initiale a échoué.")
+  }
+
+  # Vérifier le statut de la réponse
+  if (status_code(response) == 202) {
+    # Récupérer l'ID de la commande
+    id <- fromJSON(content(response, "text", encoding = "UTF-8"), flatten = TRUE)$elaboreProduitAvecDemandeResponse$return
+
+    # Pause de 10 secondes avant la seconde requête
+    cat("Pause de 7 secondes avant la seconde requête...\n")
+    Sys.sleep(7)
+
+    # Construire l'URL pour télécharger le fichier
+    url2 <- paste0("https://public-api.meteofrance.fr/public/DPClim/v1/commande/fichier?id-cmde=", id)
+
+    cat("URL pour télécharger le fichier:", url2, "\n")
+
+    # Faire la requête pour télécharger le fichier
+    response2 <- tryCatch({
+      GET(url2, add_headers(Accept = "*/*", `apikey` = api_key))
+    }, error = function(e) {
+      cat("Erreur lors de la requête GET pour le fichier:", e$message, "\n")
+      return(NULL)
+    })
+
+    if (is.null(response2)) {
+      stop("La requête pour télécharger le fichier a échoué.")
+    }
+
+    # Vérifier le statut de la réponse
+    if (status_code(response2) == 201) {
+      # Lire le contenu de la réponse comme un fichier CSV
+      content_text <- content(response2, "text", encoding = "UTF-8")
+      con <- textConnection(content_text)
+      data <- read.csv(con, sep = ";", header = TRUE, stringsAsFactors = FALSE, dec = ",")
+      close(con)
+
+      # Retourner les données
+      return(data)
+    } else {
+      stop(paste("Erreur lors du téléchargement du fichier : ", status_code(response2), content(response2, "text")))
+    }
+  } else {
+    stop(paste("Erreur : ", status_code(response), content(response, "text")))
+  }
+}
+
+
+new_data = function(df_meteo, data_mouv){
+
+  df_meteo$date = lubridate::ymd_h(df_meteo$DATE)
+
+  df_meteo$id_join = paste0(date(df_meteo$date), "_", hour(df_meteo$date))
+
+  df_meteo = df_meteo %>% select(id_join, date,GLO,U,VV, T, RR1)   # Sélection des variables pertinentes de météo
+
+  # Convertir la chaîne en datetime et spécifier la timezone CEST
+  datetime_cest <- lubridate::ymd_hms(data_mouv$date, tz = "Europe/Paris")
+
+  # Convertir la datetime en UTC
+  datetime_utc <- with_tz(datetime_cest, tzone = "UTC")
+
+  data_mouv$date = datetime_utc
+
+  data_mouv$id_join = paste0(data_mouv$day, "_", data_mouv$hour)
+
+  data_mouv$date <- NULL
+
+  result = left_join(data_mouv, df_meteo, by="id_join")
+
+  result$id_join <- NULL
+
+  return(result)
 }
 

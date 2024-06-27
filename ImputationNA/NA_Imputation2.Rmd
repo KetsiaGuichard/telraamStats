@@ -25,6 +25,7 @@ dataV2 <- read.csv("/Users/paulvallee/Desktop/Stage CREM/Code R/data/20230518_20
 dataV2$uptime_quality <- ifelse(dataV2$uptime >=0.5 ,TRUE,FALSE)
 dataV2 <- dataV2 %>% rename(segment_name = segment_fullname) %>%  filter(segment_name != "") %>%  mutate(segment_name = as.factor(as.character(gsub("[0-9-]+", "",segment_name))),uptime = as.numeric(uptime))
 dataV2 <- stop_sensor(dataV2)
+dataV2 <- quarterly_to_hourly(dataV2) 
 ```
 
 
@@ -54,12 +55,6 @@ sensors  %>% mutate(date = as.POSIXct(date),interval="hourly") %>%
 ```
 
 
-
-```{r}
-```
-
-
-
 ## Capteur Test pour l'imputation 
 
 ```{r}
@@ -73,12 +68,6 @@ sensor7 <- dataV2 %>% filter(segment_id == 9000004042,uptime_quality)
 
 
 sensors <- list(sensor1,sensor2,sensor3,sensor4,sensor5,sensor6,sensor7)
-
-
-#Holidays 
-holidays_imput <- dataV2%>% rename(ds=date) %>% filter(vacation_flag == 1 ) %>% mutate(lower_window = -1, upper_window = 1, vacation = as.character(vacation)) %>% select(vacation, ds, lower_window, upper_window) %>% rename(holiday = vacation)
-
-
 ```
 
 
@@ -582,7 +571,7 @@ for (sensor in sensors) {
   print(sensor$segment_name[1])
     
   data_imput_list <- Create_test_data_suite(quarterly_to_hourly(sensor), prop_missing=0.20,seed=1234)
-  data_imput <- data_imput_list$test   %>% rename(ds=date,y=vehicle)
+  data_imput <- data_imput_list$test   %>% rename(y=vehicle)
   date_imput <- data_imput$ds[which(is.na(data_imput$y))]
   val_reel <- data_imput_list$temoin  %>% filter(date %in% date_imput) %>% select(date,vehicle,hour,weekday) %>% rename(ds=date,y=vehicle)
   
@@ -627,14 +616,14 @@ crit_splin %>%  group_by(crit,type,gap) %>% summarise(na = mean(num_na)) %>% ggp
 
 - Fonction 
 ```{r}
-imput_rolling_median <- function(data, window) {
+impute_rolling_median <- function(data, window) {
   imputed_data <- data
   imputed_data$y <- zoo::rollapply(data$y, width = window, FUN = function(x) median(x, na.rm = TRUE), fill = NA,partial = TRUE , align = "center")
   return(imputed_data)
 }
 
 
-imput_rolling_mean <- function(data, window) {
+impute_rolling_mean <- function(data, window) {
   imputed_data <- data
   imputed_data$y <- zoo::rollapply(data$y, width = window, FUN = function(x) mean(x, na.rm = TRUE), fill = NA,partial = TRUE , align = "center")
   return(imputed_data)
@@ -744,11 +733,11 @@ rolling_hourly <- function(data, val_reel, windows) {
     }
 
     # Calcul des erreurs pour les données imputées
-    errors_mean <- val_reel  %>% left_join(res_imput, by = "ds", suffix = c("", "_chap")) %>% 
+    errors_mean <- val_reel  %>% left_join(res_imput, by = "date", suffix = c("", "_chap")) %>% 
       mutate(error = y - y_chap) %>% 
       summarise(mae = mean(abs(error), na.rm = TRUE), rmse = sqrt(mean(error^2, na.rm = TRUE)))
     
-    errors_median <- val_reel  %>% left_join(res_imput, by = "ds", suffix = c("", "_chap")) %>% 
+    errors_median <- val_reel  %>% left_join(res_imput, by = "date", suffix = c("", "_chap")) %>% 
       mutate(error = y - y_chap) %>% 
       summarise(mae = mean(abs(error), na.rm = TRUE), rmse = sqrt(mean(error^2, na.rm = TRUE)))
     
@@ -834,16 +823,14 @@ windows <- 2:72
 crit_MA_data <- data.frame()
 list_graph_rolling <- list()
 
-star_time_glob <- Sys.time()
 #Ajouter le sensors a une liste
 for (sensor in sensors) {
-  start_time <- Sys.time()
   print(sensor$segment_name[1])
   
-data_imput_list <- Create_test_data_suite(quarterly_to_hourly(sensor), prop_missing=0.20,seed=1234)
-data_imput <- data_imput_list$test   %>% rename(ds=date,y=vehicle)
-date_imput <-  data_imput$ds[which(is.na(data_imput$y))]
-val_reel <- data_imput_list$temoin  %>% filter(date %in% date_imput) %>% select(date,vehicle,hour,weekday) %>% rename(ds=date,y=vehicle)
+data_imput_list <- Create_test_data_suite(sensor, prop_missing=0.20,seed=1234)
+data_imput <- data_imput_list$test   %>% rename(y=vehicle)
+date_imput <-  data_imput$date[which(is.na(data_imput$y))]
+val_reel <- data_imput_list$temoin  %>% filter(date %in% date_imput) %>% select(date,vehicle,hour,weekday) %>% rename(y=vehicle)
 
   
 # Appel de la fonction d'évaluation pour les modèles globaux
@@ -853,11 +840,11 @@ val_reel <- data_imput_list$temoin  %>% filter(date %in% date_imput) %>% select(
 
 # Appel de la fonction d'évaluation pour les modèles journaliers
 #results_daily <- rolling_daily(data_imput, val_reel, windows)
-#results_daily
+
 
 
 # Appel de la fonction d'évaluation pour les modèles journalier/heure
-results_hourly <- rolling_hourly(data_imput, val_reel, windows)
+results_combined <- rolling_hourly(data_imput, val_reel, windows)
 
 
 #results_weekday <- rolling_weekday(data_imput, val_reel, windows)
@@ -866,40 +853,34 @@ results_hourly <- rolling_hourly(data_imput, val_reel, windows)
 # Ajouter une colonne 'model' pour différencier les modèles
 #results_global <- results_global %>% mutate(model = "Global")
 #results_daily <- results_daily %>% mutate(model = "Daily")
-results_hourly <- results_hourly %>% mutate(model = "Hourly")
+#results_hourly <- results_hourly %>% mutate(model = "Hourly")
 #results_weekday <- results_weekday %>% mutate(model = "weekday")
 
 # Combiner les deux jeux de données
 #results_combined <- bind_rows(results_global, results_daily,results_hourly,results_weekday)
-results_combined <- results_hourly
+#results_combined <- results_hourly
 
 # Tracer les courbes
 
-p1 <- ggplot(results_combined, aes(x = window, y = mae_mean, color = model)) +
+p1 <- ggplot(results_combined, aes(x = window, y = mae_mean)) +
   geom_line() +
   labs(
     title = "Comparaison du MAE en fonction de la taille de la fenêtre",
     x = "Taille de la fenêtre",
     y = "MAE"
-  ) +
-  scale_color_manual(values = c("Global" = "blue", "Daily" = "red","Hourly" = "green","Weekday" = "purple")) +
-  theme_minimal()
-
-p2 <- ggplot(results_combined, aes(x = window, y = na_mean, color = model)) +
+  ) 
+p2 <- ggplot(results_combined, aes(x = window, y = na_mean)) +
   geom_line() +
   labs(
     title = "Comparaison du nombre de NA en fonction de la taille de la fenêtre",
     x = "Taille de la fenêtre",
     y = "MAE"
   ) +
-  scale_color_manual(values = c("Global" = "blue", "Daily" = "red","Hourly" = "green","Weekday" = "purple")) +
   theme_minimal() 
 
  
 list_graph_rolling[[sensor$segment_name[1]]] <- grid.arrange(p1, p2, ncol = 2)
 
-end_time <- Sys.time()
-print(end_time - start_time)
 crit_MA_data <- rbind(crit_MA_data,results_combined)
 
 }
@@ -907,28 +888,29 @@ crit_MA_data <- rbind(crit_MA_data,results_combined)
 end_time_glob <- Sys.time()
 print(end_time_glob - star_time_glob)
 
-p5 <- crit_MA_data %>% group_by(window, model) %>% summarise(mae_mean = mean(mae_mean), rmse_mean = mean(rmse_mean), na_mean = mean(na_mean), mae_median = mean(mae_median), rmse_median = mean(rmse_median), na_median = mean(na_median)) %>% ggplot(aes(x = window, y = mae_mean, color = model)) +
+p5 <- crit_MA_data %>% group_by(window) %>% summarise(mae_mean = mean(mae_mean), rmse_mean = mean(rmse_mean), na_mean = mean(na_mean), mae_median = mean(mae_median), rmse_median = mean(rmse_median), na_median = mean(na_median)) %>% ggplot(aes(x = window, y = mae_mean)) +
   geom_line() +
   labs(
     title = "Comparaison du MAE",
     x = "Taille de la fenêtre",
     y = "MAE"
   ) +
-  scale_color_manual(values = c("Global" = "blue", "Daily" = "red","Hourly" = "green","Weekday" = "purple")) +
   theme_minimal()
 
-p6 <- crit_MA_data %>% group_by(window, model) %>% summarise(mae_mean = mean(mae_mean), rmse_mean = mean(rmse_mean), na_mean = mean(na_mean), mae_median = mean(mae_median), rmse_median = mean(rmse_median), na_median = mean(na_median)) %>% ggplot(aes(x = window, y = na_mean, color = model)) + 
+p6 <- crit_MA_data %>% group_by(window) %>% summarise(mae_mean = mean(mae_mean), rmse_mean = mean(rmse_mean), na_mean = mean(na_mean), mae_median = mean(mae_median), rmse_median = mean(rmse_median), na_median = mean(na_median)) %>% ggplot(aes(x = window, y = na_mean)) + 
   geom_line() +
   labs(
     title = "Comparaison du nombre de NA en fonction de la taille de la fenêtre",
     x = "Taille de la fenêtre",
     y = "MAE"
   ) +
-  scale_color_manual(values = c("Global" = "blue", "Daily" = "red","Hourly" = "green","Weekday" = "purple")) +
   theme_minimal()
 
 gridExtra::grid.arrange(p5, p6, ncol = 2)
 
+crit_MA_data[which.min(crit_MA_data$mae_mean),]
+
+#Window 5
 ```
 
 
@@ -1161,6 +1143,59 @@ lapply(list_graph_spline,plot)
 
 ```{r}
 lapply(list_graph_rolling,plot)
+```
+
+
+
+```{r}
+#Tester l'algorithme sur les sensors puis calculer la MAE et tracer  pour chaque valeur de window
+windows = 2:50
+results <- data.frame(sensor = character(), window = integer(), MAE = numeric(),NB_NA = numeric())
+
+
+for (sensor in sensors) {
+  sensor_name <- sensor$segment_name[1]
+  data_imput_list <- Create_test_data_suite(sensor, prop_missing = 0.30, seed = 1234)
+  data_imput <- data_imput_list$test
+  date_imput <- data_imput$date[which(is.na(data_imput$vehicle))]
+  val_reel <- data_imput_list$temoin %>% filter(date %in% date_imput) %>% select(date, vehicle, hour, weekday)
+
+  for (window in windows) {
+    # Impute missing values
+    imputed_data <- impute_NA_vehicle(data_imput, window = window)
+    imputed_data <- imputed_data %>% filter(imputed == "imputed")
+
+    # Calculate the MAE
+    crit <- imputed_data %>% inner_join(val_reel, by = "date") %>%
+      mutate(error = abs(vehicle.x - vehicle.y))
+    mae <- mean(crit$error, na.rm = TRUE)
+
+    # Calculate the number of NA after imputation
+    nb_na <- sum(is.na(imputed_data$vehicle))
+
+    # Store the results
+    results <- rbind(results, data.frame(sensor = sensor_name, window = window, MAE = mae, NB_NA = nb_na))
+  }
+}
+
+
+#Add the mean of all sensor to results with "Moyenne des capteurs" as name for the sensor
+mean_results <- results %>%
+  group_by(window) %>%
+  summarise(MAE = mean(MAE, na.rm = TRUE),
+            NB_NA = sum(NB_NA)) %>%
+  mutate(sensor = "Moyenne des capteurs")
+
+results <- rbind(results, mean_results)
+
+
+# Plot the results
+ggplot(results, aes(x = window, y = MAE)) +
+  geom_line() +
+  labs(title = "MAE for Different Window Sizes", x = "Window Size", y = "MAE") +
+  theme_minimal() +
+  facet_wrap(~ sensor, scales = "free_y")
+
 ```
 
 
