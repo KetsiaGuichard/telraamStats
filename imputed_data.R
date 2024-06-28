@@ -24,7 +24,7 @@
 #' @Importfrom yaml dplyr ranger lubridate
 
 #' @examples
-#' traffic_NA <- stop_sensor(traffic, successive_day = 2)
+#' traffic_NA <- stop_sensor2(traffic, successive_day = 2)
 #' traffic_imputed <- impute_missing_data(traffic_NA, sensors_name = "RteVitre-06", transport_type = "vehicle")
 #' table(traffic_imputed$imputed)
 
@@ -111,7 +111,7 @@ create_and_train_model <- function(data, target, base_vars) {
 
 
   # Remove rows with uptime < 0.5 for imputation
-  data_rf <- data_rf %>% mutate(y = ifelse(uptime < 0.5,y,NA))
+  data_rf <- data_rf %>% mutate(y = ifelse(uptime < 0.5,NA,y))
 
   # Split data into training and test sets
   is_train <- !is.na(data_rf$y)
@@ -148,7 +148,7 @@ create_and_train_model <- function(data, target, base_vars) {
 
 # 3. Main function logic
 impute_missing_data <- function(data, sensors_name = NULL, transport_type = "vehicle") {
-
+  start = Sys.time()
   # Validate and preprocess the input data
   data <- validate_and_preprocess_data(data, transport_type, sensors_name)
 
@@ -181,7 +181,9 @@ impute_missing_data <- function(data, sensors_name = NULL, transport_type = "veh
   # Sort the final dataset
   data_complete <- data_complete %>%
     arrange(segment_name, date)
-
+  end = Sys.time()
+  # Print the time taken to impute the data in seconds
+  print(end - start)
   return(data_complete)
 }
 

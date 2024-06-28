@@ -1,0 +1,120 @@
+---
+title: "Analyse pour présentation 3"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, message=FALSE,include=FALSE, warning=FALSE, "1"}
+source("fonction_meteo.R")
+source("imputed_data.R")
+source("fonction_filtre_data.R")
+load("data/V2_meteo.RData")
+capteurs_V2 = read.csv("data/20230518_20240517_v2_sensors_extract.csv", sep=",", header=TRUE)
+library(dplyr)
+library(yaml)
+library(ranger)
+library(lubridate)
+```
+
+
+# Analyse avec les données imputées
+
+## Analyse du comportement du trafic en fonction de la météo, Approche de la moyenne
+
+Pour commencer, nous allons imputer les données des capteurs V2.
+
+```{r}
+V2_meteo = V2_meteo %>% mutate(vehicle = ifelse(uptime_quality, vehicle , NA) )
+
+visu_na(V2_meteo)
+
+V2_meteo_imputed = impute_missing_data(V2_meteo %>% filter(!is.na(date)), transport_type = "vehicle")
+
+table(V2_meteo_imputed$imputed)
+
+V2_meteo_imputed %>%  filter(imputed == "imputed")
+
+V2_meteo %>% filter(!uptime_quality)
+```
+
+
+```{r}
+V2_meteo %>% filter(!uptime_quality)
+```
+
+
+```{r}
+capteurs_V2 %>% filter(uptime<0.5)
+
+capteurs_V2 %>% filter(!uptime_quality)
+```
+
+
+
+```{r}
+
+# Import des données des capteurs V2
+capteurs_V2 = read.csv("data/20230518_20240517_v2_sensors_extract.csv", sep=",", header=TRUE)
+
+# Ajout des colonnes vehicle, season et segment_name nécessaire pour lancer la fonction impute_missing_data
+capteurs_V2 = capteurs_V2 %>% mutate(vehicle = car + heavy , vehicle = ifelse(uptime>=0.5, vehicle, NA),
+                                     season = ifelse(month(date) %in% c(3,4,5), "printemps", ifelse(month(date) %in% c(6,7,8),                                                       "été", ifelse(month(date) %in% c(9,10,11), "automne", "hiver"))),
+                                     segment_name = strsplit(segment_fullname, " - ") %>% sapply(function(x) x[1])
+                                     )
+
+# Imputation des données des capteurs V2 avec les donnnées toutes les 15 minutes
+capteurs_V2_imputed = impute_missing_data(capteurs_V2, transport_type = "vehicle")
+
+# Vérification
+table(capteurs_V2_imputed$imputed)
+
+capteurs_V2_imputed %>%  filter(imputed == "imputed")
+rm(capteurs_V2)
+```
+
+
+```{r}
+# Conversion des données des capteurs V2 en données horaires et vusion avec les données météo
+capteurs_V2_imputed_h = quarterly_to_hourly(capteurs_V2_imputed)
+capteurs_V2_imputed_h = stop_sensor(capteurs_V2_imputed_h, uptime_choice = 0.5, remove_data = TRUE)
+V2_imputed_meteo = new_data(meteo, capteurs_V2_imputed_h)
+
+visu_na(V2_imputed_meteo)
+
+V2_imputed_meteo <- V2_imputed_meteo %>%
+  filter(!is.na(RR1))
+
+```
+
+
+
+```{r}
+# Passons à l'analyse du comportement du trafic en fonction de la météo
+
+# On commence par la moyenne
+analyser_impact_pluie(V2_imputed_meteo)
+
+```
+
+## Comparaison de la moyenne des vélos puis des véhicules en fonction du seuil de pluie pendant les heures d'affluence le matin (7h et 8h) et en semaine
+
+```{r}
+# Comparaison de la moyenne des vélos puis des véhicules en fonction du seuil de pluie pendant les heures d'affluence le matin (7h et 8h) et en semaine
+analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "matin", weekend = FALSE)
+
+```
+
+
+
+
+
+
+
+
+
+
