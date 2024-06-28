@@ -10,7 +10,7 @@ source("stop_sensor.R")
 ```
 
 ```{r}
-pacman::p_load(tidyverse,telraamStats,lubridate,forecast,prophet,purrr,zoo,gridExtra,missNDA)
+pacman::p_load(tidyverse,telraamStats,lubridate,forecast,prophet,purrr,zoo,gridExtra,missNDA,rangger)
 
 ```
 ```{r}

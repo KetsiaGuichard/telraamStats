@@ -235,10 +235,12 @@ data_comp %>% ggplot(aes(x = reel, y = predicted_vehicle)) +
 
 
 ```
+
+
 ```{r}
 
 
-
+data_imput<- data_imput %>% mutate(car = ifelse(is.na(vehicle),NA,car))
 data_imput_rf <- data_imput %>%  select(car, day_of_month, hour, weekday, month, year, vacation, season, week_number, segment_name,date)
 data_train <- data_imput_rf %>% filter(!is.na(car)) %>% na.omit() %>% mutate( imputed = "original")
 data_test <-  data_imput_rf %>% filter(is.na(car)) %>% mutate( imputed = "imputed")
@@ -247,7 +249,7 @@ data_test <-  data_imput_rf %>% filter(is.na(car)) %>% mutate( imputed = "impute
 foret <- ranger(car ~ . - date, data = data_train, mtry = 8, min.node.size = 1,importance = "impurity")
 
 # Faire les prédictions
-predictions <- predict(foret1, data = data_test)$predictions
+predictions <- predict(foret, data = data_test)$predictions
 
 data_test <- data_test %>%
   mutate(predicted_car= predictions)
@@ -268,7 +270,9 @@ data_comp %>% ggplot(aes(x = car_reel, y = predicted_car)) +
 
 
 ```
+
 ```{r}
+data_imput<- data_imput %>% mutate(heavy = ifelse(is.na(vehicle),NA,heavy))
 data_imput_rf <- data_imput %>%  select(heavy, day_of_month, hour, weekday, month, year, vacation, season, week_number, segment_name,date)
 data_train <- data_imput_rf %>% filter(!is.na(heavy)) %>% na.omit() %>% mutate( imputed = "original")
 data_test <-  data_imput_rf %>% filter(is.na(heavy)) %>% mutate( imputed = "imputed")
@@ -277,56 +281,26 @@ data_test <-  data_imput_rf %>% filter(is.na(heavy)) %>% mutate( imputed = "impu
 foret <- ranger(heavy ~ . - date, data = data_train, mtry = 8, min.node.size = 1,importance = "impurity")
 
 # Faire les prédictions
-predictions <- predict(foret1, data = data_test)$predictions
+predictions <- predict(foret, data = data_test)$predictions
 
 data_test <- data_test %>%
   mutate(predicted_heavy= predictions)
 
 res_RF <- Create_metrics(data_test, val_reel, "predicted_heavy", "heavy_reel","RF")
 res_RF
-
+res_RF_heavy
 #Visualiser les résultats data_test_prediction vs val_reel
 
 data_comp <- data_test %>% select(date,weekday,hour ,segment_name, predicted_heavy) %>% left_join(val_reel %>% select(date, segment_name, heavy_reel), by = c("date", "segment_name"))
-data_comp %>% ggplot(aes(x = heavy_reel, y = predicted_heavy)) +
+p1 <- data_comp %>% ggplot(aes(x = heavy_reel, y = predicted_heavy)) +
   geom_point() +
   geom_abline(intercept = 0, slope = 1, color = "red") +
-  labs(title = "Comparaison des valeurs prédites et réelles",
+  labs(title = "Comparaison des valeurs prédites et réelles heavy = vehicle - car",
        x = "Valeurs réelles",
        y = "Valeurs prédites")
 
 
 ```
-```{r}
-data_imput_rf <- data_imput %>%  select(bike, day_of_month, hour, weekday, month, year, vacation, season, week_number, segment_name,date)
-data_train <- data_imput_rf %>% filter(!is.na(bike)) %>% na.omit() %>% mutate( imputed = "original")
-data_test <-  data_imput_rf %>% filter(is.na(bike)) %>% mutate( imputed = "imputed")
-
-
-foret <- ranger(bike ~ . - date, data = data_train, mtry = 8, min.node.size = 1,importance = "impurity")
-
-# Faire les prédictions
-predictions <- predict(foret1, data = data_test)$predictions
-
-data_test <- data_test %>%
-  mutate(predicted_bike= predictions)
-
-res_RF <- Create_metrics(data_test, val_reel, "predicted_bike", "bike_reel","RF")
-res_RF
-
-#Visualiser les résultats data_test_prediction vs val_reel
-
-data_comp <- data_test %>% select(date,weekday,hour ,segment_name, predicted_bike) %>% left_join(val_reel %>% select(date, segment_name, bike_reel), by = c("date", "segment_name"))
-data_comp %>% ggplot(aes(x = bike_reel, y = predicted_bike)) +
-  geom_point() +
-  geom_abline(intercept = 0, slope = 1, color = "red") +
-  labs(title = "Comparaison des valeurs prédites et réelles",
-       x = "Valeurs réelles",
-       y = "Valeurs prédites")
-
-
-```
-
 
 ```{r}
 # Préparation des données pour la prédiction des cars
@@ -374,7 +348,7 @@ data_comp_heavy <- data_test_combined %>%
   select(date, weekday, hour, segment_name, predicted_heavy) %>%
   left_join(val_reel %>% select(date, segment_name, heavy_reel), by = c("date", "segment_name"))
 
-ggplot(data_comp_heavy, aes(x = heavy_reel, y = predicted_heavy)) +
+p2 <- ggplot(data_comp_heavy, aes(x = heavy_reel, y = predicted_heavy)) +
   geom_point() +
   geom_abline(intercept = 0, slope = 1, color = "red") +
   labs(title = "Comparaison des valeurs prédites et réelles pour les heavy",
@@ -384,6 +358,41 @@ ggplot(data_comp_heavy, aes(x = heavy_reel, y = predicted_heavy)) +
 
 ```
 
+
+```{r}
+gridExtra::grid.arrange(p1, p2, nrow = 2)
+```
+
+
+```{r}
+data_imput_rf <- data_imput %>%  select(bike, day_of_month, hour, weekday, month, year, vacation, season, week_number, segment_name,date)
+data_train <- data_imput_rf %>% filter(!is.na(bike)) %>% na.omit() %>% mutate( imputed = "original")
+data_test <-  data_imput_rf %>% filter(is.na(bike)) %>% mutate( imputed = "imputed")
+
+
+foret <- ranger(bike ~ . - date, data = data_train, mtry = 8, min.node.size = 1,importance = "impurity")
+
+# Faire les prédictions
+predictions <- predict(foret1, data = data_test)$predictions
+
+data_test <- data_test %>%
+  mutate(predicted_bike= predictions)
+
+res_RF <- Create_metrics(data_test, val_reel, "predicted_bike", "bike_reel","RF")
+res_RF
+
+#Visualiser les résultats data_test_prediction vs val_reel
+
+data_comp <- data_test %>% select(date,weekday,hour ,segment_name, predicted_bike) %>% left_join(val_reel %>% select(date, segment_name, bike_reel), by = c("date", "segment_name"))
+data_comp %>% ggplot(aes(x = bike_reel, y = predicted_bike)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red") +
+  labs(title = "Comparaison des valeurs prédites et réelles",
+       x = "Valeurs réelles",
+       y = "Valeurs prédites")
+
+
+```
 
 
 
@@ -495,11 +504,26 @@ results %>% arrange(NMAE) %>% head()
 
 
 ```
+
 ```{r}
 res_RF
 res_MA
 ```
 
+```{r}
+dataV2_car <- dataV2 %>% mutate(car = ifelse(!uptime_quality,NA,car),
+                                heavy = ifelse(!uptime_quality,NA,heavy))
+sum(is.na(dataV2_car$car))
+```
+
+
+
+```{r}
+
+res_imput <- impute_missing_data(data_imput,transport_type = "vehicle",threshold_uptime = 0.7)
+table(res_imput$imputed)
+res_imput %>% filter(imputed == "imputed") %>% arrange(segment_id,date)
+```
 
 
 

@@ -29,6 +29,7 @@
 #' table(traffic_imputed$imputed)
 
 
+
 # 1. Function to validate and preprocess the input data
 validate_and_preprocess_data <- function(data, transport_type, sensors_name) {
   # Define constants

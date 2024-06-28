@@ -21,7 +21,7 @@
 #' @export
 #'
 
-#' @Importfrom yaml dplyr ranger lubridate
+#' @Importfrom yaml dplyr ranger
 
 #' @examples
 #' traffic_NA <- stop_sensor(traffic, successive_day = 2)
@@ -29,12 +29,16 @@
 #' table(traffic_imputed$imputed)
 
 
-# 1. Function to validate and preprocess the input data
-validate_and_preprocess_data <- function(data, transport_type, sensors_name) {
-  # Define constants
+
+impute_missing_data <- function(data, sensors_name = NULL, transport_type = "vehicle") {
+
+  #-- Check all the required elements --
+
+  # Define valid transport types and required variables
   VALID_TRANSPORT_TYPES <- c("car", "vehicle", "heavy", "all")
   BASE_VARS <- c("day_of_month", "hour", "weekday", "month", "year", "vacation", "season", "week_number", "segment_name", "date")
   VEHICLE_VARS <- c("car", "heavy")
+
 
   # Validate input parameters
   if (!transport_type %in% VALID_TRANSPORT_TYPES) {
@@ -49,24 +53,24 @@ validate_and_preprocess_data <- function(data, transport_type, sensors_name) {
     stop("The 'date' column is missing from the dataset.")
   }
 
+  # Ensure date column is in the correct format
+  data$date <- as.Date(data$date)
+
   # Add missing date-related columns using lubridate if they're not present
   if (!"day_of_month" %in% colnames(data)) {
-    data <- data %>% mutate(day_of_month = day(date))
-  }
-  if (!"hour" %in% colnames(data)) {
-    data <- data %>% mutate(hour = hour(date))
+    data$day_of_month <- day(data$date)
   }
   if (!"month" %in% colnames(data)) {
-    data <- data %>% mutate(month = month(date))
+    data$month <- month(data$date)
   }
   if (!"year" %in% colnames(data)) {
-    data <- data %>% mutate(year = year(date))
+    data$year <- year(data$date)
   }
   if (!"week_number" %in% colnames(data)) {
-    data <- data %>% mutate(week_number = week(date))
+    data$week_number <- week(data$date)
   }
   if (!"weekday" %in% colnames(data)) {
-    data <- data %>% mutate(weekday = wday(date))
+    data$weekday <- wday(data$date)
   }
 
   # Check if all required variables are present in the dataset
@@ -74,92 +78,50 @@ validate_and_preprocess_data <- function(data, transport_type, sensors_name) {
   if (length(missing_vars) > 0) {
     stop(sprintf("Missing required variables: %s", paste(missing_vars, collapse = ", ")))
   }
-
-  # Filter data by segment name if specified
+  # Filter the data by sensor name if specified
   if (!is.null(sensors_name)) {
     data <- data[data$segment_name %in% sensors_name, ]
   }
 
-  # Convert data types to the correct format
-  data <- data %>%
-    mutate(
-      day_of_month = as.numeric(day_of_month),
-      hour = as.numeric(hour),
-      weekday = as.factor(weekday),
-      month = as.factor(month),
-      year = as.numeric(year),
-      vacation = ifelse(is.list(vacation), as.factor(unlist(vacation)), as.factor(vacation)),
-      season = as.factor(season),
-      week_number = as.numeric(week_number),
-      segment_name = ifelse(is.list(segment_name), as.factor(as.character(unlist(segment_name))), as.factor(as.character(segment_name)))
-    )
 
-  if (!"vehicle" %in% colnames(data)) {
-    data <- data %>%
-      mutate(vehicle = car + heavy)
+  # -- Define the model function --
+  # Function to create and train model
+  create_and_train_model <- function(data, target) {
+    # Prepare data for Random Forest
+    data_rf <- data %>%
+      mutate(y = !!sym(target)) %>%
+      select(y, all_of(BASE_VARS))
+
+    # Split data into training and test sets
+    is_train <- !is.na(data_rf$y)
+    data_train <- data_rf[is_train, ] %>% mutate(imputed = "original")
+    data_test <- data_rf[!is_train, ] %>% mutate(imputed = "imputed")
+
+    # Train Random Forest model
+    model_rf <- ranger(y ~ . - date, data = data_train, mtry = 8, min.node.size = 1)
+
+    # Make predictions and combine results
+    data_test$y <- predict(model_rf, data = data_test)$predictions
+    result <- bind_rows(data_train, data_test)
+    names(result)[names(result) == "y"] <- target
+
+    return(result)
   }
 
-  return(data)
-}
+  # -- Main function logic --
 
-
-# 2. Function to create and train the model
-create_and_train_model <- function(data, target, base_vars) {
-  # Prepare data for Random Forest
-  data_rf <- data %>%
-    mutate(y = !!sym(target)) %>% select(-!!sym(target))
-
-  # Split data into training and test sets
-  is_train <- !is.na(data_rf$y)
-  data_train <- data_rf[is_train, ] %>% mutate(imputed = "original")
-  data_test <- data_rf[!is_train, ] %>% mutate(imputed = "imputed")
-
-  # Remove NA from training data
-  data_train_clean <- data_train %>%
-    select(y, all_of(base_vars)) %>%
-    na.omit()
-
-  # Train Random Forest model
-  model_rf <- ranger(y ~ . - date, data = data_train_clean, mtry = 8, min.node.size = 1)
-
-  # Prepare test data, keeping track of removed rows
-  data_test_clean <- data_test %>%
-    select(all_of(base_vars))
-  rows_to_predict <- complete.cases(data_test_clean)
-
-  # Make predictions only for complete cases
-  predictions <- predict(model_rf, data = data_test_clean[rows_to_predict, ])$predictions
-
-  # Assign predictions back to the original test data frame
-  data_test$y <- NA
-  data_test$y[rows_to_predict] <- predictions
-  data_test$imputed <- ifelse(is.na(data_test$y), "not imputed", "imputed")
-
-  # Combine results
-  result <- bind_rows(data_train, data_test)
-  names(result)[names(result) == "y"] <- target
-
-  return(result)
-}
-
-# 3. Main function logic
-impute_missing_data <- function(data, sensors_name = NULL, transport_type = "vehicle") {
-
-  # Validate and preprocess the input data
-  data <- validate_and_preprocess_data(data, transport_type, sensors_name)
-
-  # Define constants
-  BASE_VARS <- c("day_of_month", "hour", "weekday", "month", "year", "vacation", "season", "week_number", "segment_name", "date")
+  # Store the original data
+  original_data <- data
 
   # Impute data based on transport type
   if (transport_type == "heavy" || transport_type == "all") {
     # Impute 'vehicle' and 'car' separately
-    data_vehicle <- create_and_train_model(data, "vehicle", BASE_VARS)
-    data_car <- create_and_train_model(data, "car", BASE_VARS)
+    data_vehicle <- create_and_train_model(data, "vehicle")
+    data_car <- create_and_train_model(data, "car")
 
     # Calculate 'heavy' as max(0, vehicle - car)
     data_complete <- data_vehicle %>%
-      select(vehicle, segment_name, date ,imputed) %>%
+      select(vehicle, segment_name, date, imputed) %>%
       left_join(data_car %>% select(car, segment_name, date), by = c("segment_name", "date")) %>%
       mutate(
         heavy = pmax(0, vehicle - car),
@@ -171,12 +133,20 @@ impute_missing_data <- function(data, sensors_name = NULL, transport_type = "veh
     }
   } else {
     # For 'car' and 'vehicle', use the original method
-    data_complete <- create_and_train_model(data, transport_type, BASE_VARS)
+    data_complete <- create_and_train_model(data, transport_type)
   }
 
+  # Add back any additional variables from the original data
+  vars_to_add <- setdiff(colnames(original_data), colnames(data_complete))
+  data_complete <- left_join(
+    data_complete,
+    original_data %>% select(segment_name, date, all_of(vars_to_add)),
+    by = c("segment_name", "date")
+  )
+
+
   # Sort the final dataset
-  data_complete <- data_complete %>%
-    arrange(segment_name, date)
+  data_complete <- data_complete[order(data_complete$segment_name, data_complete$date), ]
 
   return(data_complete)
 }
@@ -184,18 +154,33 @@ impute_missing_data <- function(data, sensors_name = NULL, transport_type = "veh
 
 
 
+# Example usage:
+# Impute missing data for the transport type 'vehicle', 'car'
+
+start_time <- Sys.time()
+dat <- impute_missing_data(data_imput, transport_type = "car")
+print(names(dat))
+end_time <- Sys.time()
+print(end_time - start_time)
+
+dat <- impute_missing_data(data_imput, transport_type = "vehicle")
+print(dat)
+
+dat <- impute_missing_data(data_imput, transport_type = "heavy")
+print(dat)
+
+dat <- impute_missing_data(data_imput, transport_type = "all")
+print(dat)
 
 
+#Try to impute missing data where column hour is missing
+d_test <- data_imput %>% select(-hour)
+dat <- impute_missing_data(d_test, transport_type = "vehicle")
+print(dat)
 
-
-
-
-
-
-
-
-
-
+#Try to impute missing data where transport_type is wrong
+dat <- impute_missing_data(data_imput, transport_type = "wrong")
+print(dat)
 
 
 
