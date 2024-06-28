@@ -12,9 +12,6 @@ new_data = function(df_meteo, data_mouv){
 
   df_meteo$id_join = paste0(date(df_meteo$date), "_", hour(df_meteo$date))
 
-  # vérifions l'état de date après conversion
-  print(sum(is.na(df_meteo$id_join)))
-
   df_meteo = df_meteo %>% select(id_join, date,GLO,U,VV, T, RR1)   # Sélection des variables pertinentes de météo
 
   data_mouv = data_mouv %>% mutate(vehicule = car + heavy) #%>%  select(date, segment_name, uptime, v85, vacation, holiday, weekday, vehicule, pedestrian, bike, uptime_quality, type)
@@ -29,15 +26,9 @@ new_data = function(df_meteo, data_mouv){
 
   data_mouv$id_join = paste0(data_mouv$day, "_", data_mouv$hour)
 
-  # vérifions l'état de date après conversion
-  print(sum(is.na(data_mouv$id_join)))
-
   df_meteo = df_meteo %>% select(!date)
 
   result = left_join(data_mouv, df_meteo, by="id_join")
-
-  # vérifions l'état de date après la jointure
-  print(sum(is.na(result$date)))
 
   result$id_join = NULL
 

@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 source("fonction_meteo.R")
 source("imputed_data.R")
 source("fonction_filtre_data.R")
-load("data/V2_meteo.RData")
+#load("data/V2_meteo.RData")
 capteurs_V2 = read.csv("data/20230518_20240517_v2_sensors_extract.csv", sep=",", header=TRUE)
 library(dplyr)
 library(yaml)
@@ -28,44 +28,19 @@ library(lubridate)
 
 Pour commencer, nous allons imputer les données des capteurs V2.
 
-```{r}
-V2_meteo = V2_meteo %>% mutate(vehicle = ifelse(uptime_quality, vehicle , NA) )
-
-visu_na(V2_meteo)
-
-V2_meteo_imputed = impute_missing_data(V2_meteo %>% filter(!is.na(date)), transport_type = "vehicle")
-
-table(V2_meteo_imputed$imputed)
-
-V2_meteo_imputed %>%  filter(imputed == "imputed")
-
-V2_meteo %>% filter(!uptime_quality)
-```
 
 
-```{r}
-V2_meteo %>% filter(!uptime_quality)
-```
-
-
-```{r}
-capteurs_V2 %>% filter(uptime<0.5)
-
-capteurs_V2 %>% filter(!uptime_quality)
-```
-
-
-
-```{r}
+```{r, include=FALSE}
 
 # Import des données des capteurs V2
 capteurs_V2 = read.csv("data/20230518_20240517_v2_sensors_extract.csv", sep=",", header=TRUE)
 
 # Ajout des colonnes vehicle, season et segment_name nécessaire pour lancer la fonction impute_missing_data
-capteurs_V2 = capteurs_V2 %>% mutate(vehicle = car + heavy , vehicle = ifelse(uptime>=0.5, vehicle, NA),
-                                     season = ifelse(month(date) %in% c(3,4,5), "printemps", ifelse(month(date) %in% c(6,7,8),                                                       "été", ifelse(month(date) %in% c(9,10,11), "automne", "hiver"))),
-                                     segment_name = strsplit(segment_fullname, " - ") %>% sapply(function(x) x[1])
-                                     )
+#capteurs_V2 = capteurs_V2 %>% mutate(vehicle = car + heavy , vehicle = ifelse(uptime>=0.5, vehicle, NA),
+ #                                    season = ifelse(month(date) %in% c(3,4,5), "printemps", ifelse(month(date) %in% c(6,7,8),   #                                                    "été", ifelse(month(date) %in% c(9,10,11), "automne", "hiver"))),
+   #                                  segment_name = strsplit(segment_fullname, " - ") %>% sapply(function(x) x[1])
+    #                                 )
+
 
 # Imputation des données des capteurs V2 avec les donnnées toutes les 15 minutes
 capteurs_V2_imputed = impute_missing_data(capteurs_V2, transport_type = "vehicle")
@@ -73,16 +48,40 @@ capteurs_V2_imputed = impute_missing_data(capteurs_V2, transport_type = "vehicle
 # Vérification
 table(capteurs_V2_imputed$imputed)
 
-capteurs_V2_imputed %>%  filter(imputed == "imputed")
+capteurs_V2_imputed %>% arrange(date) %>%  filter(imputed == "imputed")
 rm(capteurs_V2)
+
+# En imputant sur les données brutes des V2, on se rend compte que lorsqu'on a des NA sur une même heure (les données étant pris chaque 15 minutes), elles sont toutes imputées par la même valeur
 ```
 
 
+
 ```{r}
-# Conversion des données des capteurs V2 en données horaires et vusion avec les données météo
-capteurs_V2_imputed_h = quarterly_to_hourly(capteurs_V2_imputed)
-capteurs_V2_imputed_h = stop_sensor(capteurs_V2_imputed_h, uptime_choice = 0.5, remove_data = TRUE)
-V2_imputed_meteo = new_data(meteo, capteurs_V2_imputed_h)
+# Utilisation des données après transformation en hourly
+
+# Conversion des données des capteurs V2 en données horaires, imputation et fusion avec les données météo
+capteurs_V2_h = quarterly_to_hourly(capteurs_V2)
+capteurs_V2_h %>% filter(uptime < 0.5) %>% head()
+
+```
+
+
+**Remarque**: On se rend compte que'on passe de 87 lignes avec un uptime < 0.5 à 724 lignes avec un uptime < 0.5 après la transformation en données horaires. Cela est dû au fait que sur les données au quart heures, on retrouve parmi eux des l'abscence de certains quart heures. Par exemple sur le capteur de **Prieuré** le **09-09-2023** à **9h**, on n'a les données uniquement de 9h et pas pour le reste de quart d'heure. En soi, cela signifie que pour cette heure là le capteur n'a fonctionné que d'au plus 15 minutes
+
+
+```{r}
+
+# Imputation
+capteurs_V2_imputed = impute_missing_data(capteurs_V2_h, transport_type = "vehicle")
+
+capteurs_V2_imputed %>%  filter(imputed == "imputed") %>% filter(date(date) == "2023-09-13")
+
+# Vérification
+table(capteurs_V2_imputed$imputed)
+
+
+
+V2_imputed_meteo = new_data(meteo, capteurs_V2_imputed)
 
 visu_na(V2_imputed_meteo)
 
@@ -90,6 +89,8 @@ V2_imputed_meteo <- V2_imputed_meteo %>%
   filter(!is.na(RR1))
 
 ```
+
+
 
 
 
@@ -105,9 +106,65 @@ analyser_impact_pluie(V2_imputed_meteo)
 
 ```{r}
 # Comparaison de la moyenne des vélos puis des véhicules en fonction du seuil de pluie pendant les heures d'affluence le matin (7h et 8h) et en semaine
-analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "matin", weekend = FALSE)
+result = analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "matin", weekend = FALSE)
+rm(result)
 
+# filtre sur les heures d'affluence le matin (7h-8h) et en semaine
+V2_imputed_meteo %>% filter(hour %in% c(7,8), weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")) %>% filter(RR1>1.5)
 ```
+
+## Comparaison le SOIR (17h et 18h) et en semaine.
+
+```{r}
+result = analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "soir", weekend = FALSE)
+rm(result)
+```
+
+
+## Comparaison en week-end
+
+```{r}
+result = analyser_impact_pluie(V2_imputed_meteo, weekend = TRUE)
+rm(result)
+```
+
+
+## Comparaison le SOIR (17h et 18h), en semaine et pendant la période scolaire
+
+```{r}
+result = analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "soir", weekend = FALSE, vacances = FALSE)
+rm(result)
+```
+
+
+# Analyse du comportement du trafic en fonction de la météo, Approche des proportions
+
+## Comparaison des proportions de vélos puis de véhicules en fonction du seuil
+
+```{r}
+# Comparaison des proportions de vélos puis de véhicules en fonction du seuil
+result = analyser_impact_pluie(V2_imputed_meteo, approche = "proportion")
+rm(result)
+```
+
+
+## Comparaison de la proportion pendant les heures d'affluence le matin (7h et 8h) et en semaine
+
+```{r}
+# Comparaison de la proportion pendant les heures d'affluence le matin (7h et 8h) et en semaine
+result = analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "matin", weekend = FALSE, approche = "proportion")
+rm(result)
+```
+
+
+## Comparaison de la proportion en week end.
+
+```{r}
+# Comparaison de la proportion en week end
+result = analyser_impact_pluie(V2_imputed_meteo, weekend = TRUE, approche = "proportion")
+rm(result)
+```
+
 
 
 

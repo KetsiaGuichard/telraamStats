@@ -313,21 +313,26 @@ quarterly_to_hourly <- function(sensors){
     select(-car_lft,-car_rgt,-heavy_lft,-heavy_rgt,-bike_lft,-bike_rgt,-pedestrian_lft,-pedestrian_rgt,-uptime,-car,-heavy,-bike,-pedestrian, -public_holiday) %>%
     filter(minute(date) == 0 ) %>%
     left_join(sensors  %>%
-                group_by(segment_id,day,hour) %>%
-                summarise(uptime = mean(uptime),
-                          vehicle = sum(car + heavy),
-                          car = sum(car),
-                          heavy = sum(heavy),
-                          bike=sum(bike),
-                          pedestrian = sum(pedestrian),
-                          car_lft = sum(car_lft),
-                          car_rgt = sum(car_rgt),
-                          heavy_lft = sum(heavy_lft),
-                          heavy_rgt = sum(heavy_rgt),
-                          bike_lft = sum(bike_lft),
-                          bike_rgt = sum(bike_rgt),
-                          pedestrian_lft = sum(pedestrian_lft),
-                          pedestrian_rgt = sum(pedestrian_rgt)), by =c("segment_id",'day','hour'))
+                group_by(segment_id, day, hour) %>%
+                summarise(
+                  time_sum = sum(uptime * 15, na.rm = TRUE),
+                  vehicle = sum(car + heavy, na.rm = TRUE),
+                  car = sum(car, na.rm = TRUE),
+                  heavy = sum(heavy, na.rm = TRUE),
+                  bike = sum(bike, na.rm = TRUE),
+                  pedestrian = sum(pedestrian, na.rm = TRUE),
+                  car_lft = sum(car_lft, na.rm = TRUE),
+                  car_rgt = sum(car_rgt, na.rm = TRUE),
+                  heavy_lft = sum(heavy_lft, na.rm = TRUE),
+                  heavy_rgt = sum(heavy_rgt, na.rm = TRUE),
+                  bike_lft = sum(bike_lft, na.rm = TRUE),
+                  bike_rgt = sum(bike_rgt, na.rm = TRUE),
+                  pedestrian_lft = sum(pedestrian_lft, na.rm = TRUE),
+                  pedestrian_rgt = sum(pedestrian_rgt, na.rm = TRUE), .groups = 'keep'
+                ),
+              by = c("segment_id", 'day', 'hour')
+    ) %>%
+    mutate(uptime = time_sum / 60)
 }
 
 

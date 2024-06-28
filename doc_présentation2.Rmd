@@ -169,7 +169,7 @@ resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_velo
 
 # Calcul des moyennes et des p-values pour chaque seuil
 for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(7, 8) & weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"))
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > 2, "pluie", "non pluie")) %>% filter(hour %in% c(7, 8) & weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"))
   
   # Vérifier que le facteur de regroupement a exactement 2 niveaux
   if (length(unique(V2_meteo_mod$pluie)) == 2) {
@@ -445,6 +445,7 @@ gridExtra::grid.arrange(p, q, ncol = 2)
 
 rm(seuils, resultats, p, q, V2_meteo_mod, test_w, moyenne)
 ```
+
 
 Ici, on se rend compte qu'on a un comportement différents des resultats obtenus jusqu'à présent. En effet, on observe pour les week-end et le matin, une diminution du trafic lorsqu'il pleut, chez les vélos tout comme chez les véhicules. Cela peut être dû au fait que les gens préfèrent rester chez eux lorsqu'il pleut vu qu'ils n'ont pas d'obligation de se rendre au travail ou à l'école.
 
@@ -803,7 +804,7 @@ gridExtra::grid.arrange(p, q, ncol = 2)
 
 
 
-## Comparaison de la proportion le matin (7h et 8h) et en week end.
+## Comparaison de la proportion en week end.
 
 
 
