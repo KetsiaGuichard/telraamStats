@@ -30,8 +30,8 @@ library(data.table)
 library(tidyverse)
 
 # Données capteurs V2
-#capteurs_V2 = read.csv("data/20230518_20240517_v2_sensors_extract.csv", sep=",", header=TRUE)
-#capteurs_V2 = quarterly_to_hourly(capteurs_V2)
+capteurs_V2 = read.csv("data/20230518_20240517_v2_sensors_extract.csv", sep=",", header=TRUE)
+capteurs_V2 = quarterly_to_hourly(capteurs_V2)
 #capteurs_V2 = stop_sensor(capteurs_V2, uptime_choice = 0.5, remove_data = TRUE)
 #V2_meteo = new_data(meteo, capteurs_V2)
 
@@ -47,7 +47,7 @@ Dans cette première approche, nous allons simplement analyser le comportement g
 
 Nous présenterons uniquement les résultats pour lesquels nous avons eu suffisamment de données pour des resultats interprétables car pour certaines périodes, il n'y a pas eu de pluie par exemple, et de ce fait, la comparaison n'est pas pertinente ou tout du moins, pas possible. Ou encore, les précipitations ont été trop faibles et de ce fait la variations du seuil de précipitation n'est pas mis en évidence.
 
-Nous rappelons qu'ici nous utiliseraons le test de Wilcoxon pour comparer les moyennes car les données ne sont pas normalement distribuées.
+Nous rappelons qu'ici nous utiliserons le test de Wilcoxon pour comparer les moyennes car les données ne sont pas normalement distribuées.
 
 
 
