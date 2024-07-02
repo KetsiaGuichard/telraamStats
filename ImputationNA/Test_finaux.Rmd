@@ -519,12 +519,35 @@ sum(is.na(dataV2_car$car))
 
 
 ```{r}
-
 res_imput <- impute_missing_data(data_imput,transport_type = "vehicle",threshold_uptime = 0.7)
 table(res_imput$imputed)
-res_imput %>% filter(imputed == "imputed") %>% arrange(segment_id,date)
+res_imput %>% filter(imputed == "imputed") %>% arrange(segment_id,date) 
+
+res_metrics <- Create_metrics(res_imput, val_reel, "vehicle", "vehicle_reel","RF")
+
+
+res_metrics$NMAE_sensors %>% ggplot(aes(x = segment_name, y = NMAE_RF)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +
+  labs(title = "NMAE des segments pour le modèle RF", x = "Segment", y = "NMAE") +
+  theme_minimal()
+
+res_metrics$NMAE_hours %>% ggplot(aes(x = hour, y = NMAE_RF)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(title = "NMAE par heure pour le modèle RF", x = "Heure", y = "NMAE") +
+  theme_minimal()
+res_metrics$NMAE_days %>% ggplot(aes(x = weekday, y = NMAE_RF)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(title = "NMAE par jour pour le modèle RF", x = "Jour", y = "NMAE") +
+  theme_minimal()
+
 ```
 
+```{r}
+V1_imputed <- impute_missing_data(data_imput,sensors_name ="Burel-01" ,transport_type = "car",threshold_uptime = 0.5)
+unique(segments$segment_name)
+c("Burel-01","Leclerc-02","RueDesEcoles-14","ParisArcEnCiel-05","RueGdDomaine-07")
+```
 
 
 
