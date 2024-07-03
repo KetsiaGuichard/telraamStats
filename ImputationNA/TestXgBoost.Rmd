@@ -42,7 +42,7 @@ data_imput_list <- Create_test_data_with_na_distribution(dataV2,average_na_propo
 data_imput <- data_imput_list$test 
 sum(is.na(data_imput$vehicule))
 date_imput <- data_imput$date[which(is.na(data_imput$vehicle))]
-val_reel <- data_imput_list$temoin  %>% filter(date %in% date_imput) %>% select(date,vehicle,hour,weekday,segment_name,pedestrian_lft,pedestrian,pedestrian_rgt,bike,bike_lft,bike_rgt,car,car_rgt,car_lft,heavy,heavy_lft,heavy_rgt) %>% rename(vehicle_reel=vehicle,
+val_reel <- data_imput_list$temoin  %>% filter(date %in% date_imput) %>% select(date,vehicle,hour,weekday,segment_id,pedestrian_lft,pedestrian,pedestrian_rgt,bike,bike_lft,bike_rgt,car,car_rgt,car_lft,heavy,heavy_lft,heavy_rgt) %>% rename(vehicle_reel=vehicle,
                                                 pedestrian_lft_reel  =  pedestrian_lft,
                                                   pedestrian_reel = pedestrian,
                                                    pedestrian_rgt_reel = pedestrian_rgt,
@@ -138,8 +138,7 @@ create_and_train_model <- function(data, target, base_vars, threshold_uptime) {
     eta = 0.3,
     max_depth = 6,
     min_child_weight= 3,
-    subsample = 0.8,
-    colsample_bytree = 0.8,
+
     nrounds = 100
   )
 
@@ -188,6 +187,9 @@ res_xgBoost %>% left_join(val_reel, by = c("segment_name", "date")) %>%
   labs(title = "XGBoost Imputation",
        x = "Real Value",
        y = "Imputed Value")
+
+
+
 
 ```
 
@@ -264,5 +266,157 @@ result <- fine_tune_xgboost(data_imput, target = "vehicle",
 
 # Afficher les meilleurs paramètres
 print(result$best_params)
+```
+```{r}
+base_vars = c("day_of_month", "hour", "weekday", "month", "year", 
+                                          "vacation", "week_number", "segment_id", "date")
+
+
+
+data_train <- data_imput[!is.na(data_imput$vehicle),] %>% select(all_of(c("vehicle", base_vars)))
+
+data_test <- data_imput[is.na(data_imput$vehicle),] %>% select(all_of(c("vehicle", base_vars)))
+
+# Convert weekday to factor
+data_train$weekday <- as.factor(data_train$weekday)
+data_test$weekday <- as.factor(data_test$weekday)
+
+# Ensure all categorical variables are factors
+categorical_vars <- c("weekday", "month", "vacation", "segment_id")
+for (var in categorical_vars) {
+  data_train[[var]] <- as.factor(data_train[[var]])
+  data_test[[var]] <- as.factor(data_test[[var]])
+}
+val_reel[["segment_id"]] <- as.factor(val_reel[["segment_id"]])
+
+# Now run your GBM model
+set.seed(321)
+library(gbm)
+library(dplyr)
+
+shrinkage <- c(0.01, 0.1, 0.5, 1)
+n_trees <- c(100, 500, 1000, 5000)
+results <- data.frame()
+models_list <- list()
+
+for (i in 1:length(shrinkage)) {
+  for (j in 1:length(n_trees)) {
+    model <- gbm(vehicle ~ . - date,
+                 data = data_train,
+                 distribution = "gaussian",
+                 shrinkage = shrinkage[i],
+                 n.trees = n_trees[j],
+                 bag.fraction = 0.5)
+    
+    best_iter <- gbm.perf(model, plot.it = FALSE, method = "OOB")
+    
+    data_test$predictions <- predict(model, data_test, n.trees = best_iter)
+    rmse_df <- data_test %>%
+      left_join(val_reel, by = c("date", "segment_id")) %>%
+      mutate(error = vehicle_reel - predictions) %>%
+      summarise(rmse = sqrt(mean(error^2, na.rm = TRUE))) %>%
+      mutate(shrinkage = shrinkage[i], n_trees = n_trees[j])
+    
+    results <- bind_rows(results, rmse_df)
+    
+    model_name <- paste("shrinkage:", shrinkage[i], "n_trees:", n_trees[j])
+    models_list[[model_name]] <- model
+  }
+}
+
+# Trier les résultats par RMSE
+results <- results %>% arrange(rmse)
+
+# Afficher les résultats
+print(results)
+
+# Identifier le meilleur modèle
+best_model <- results[1,]
+print("Meilleur modèle :")
+print(best_model)
+
+# Tracer un graphique récapitulatif
+library(ggplot2)
+ggplot(results, aes(x = as.factor(n_trees), y = rmse, color = as.factor(shrinkage))) +
+  geom_line() +
+  geom_point() +
+  labs(title = "RMSE par nombre d'arbres et taux d'apprentissage",
+       x = "Nombre d'arbres", y = "RMSE", color = "Taux d'apprentissage") +
+  theme_minimal()
+```
+
+
+
+
+#Fine Tuning du modèle
+
+
+#Chosir n_trees 
+```{r}
+# Set the grid of hyperparameters
+n_trees <- 5000
+shrinkage <- 0.01
+
+
+model <- gbm(vehicle ~ . - date,
+             data = data_train,
+             distribution = "gaussian",
+             shrinkage = shrinkage,
+             n.trees = n_trees,
+             bag.fraction = 0.5)
+
+best_iter <- gbm.perf(model, plot.it = TRUE,method= "OOB")
+
+#Recuperer le meilleur nombre d'arbres
+best_iter
+#2785
+```
+
+#Determinier le meilleur shrinkage
+```{r}
+# Set the grid of hyperparameters
+n_trees <- 2785
+shrinkage <- 0.5 #c(0.01, 0.1, 0.5, 1)
+interaction.depth = seq(2,5)
+results <- data.frame()
+models_list <- list()
+
+for (i in 1:length(interaction.depth)) {
+  model <- gbm(vehicle ~ . - date,
+               data = data_train,
+               distribution = "gaussian",
+               shrinkage = shrinkage,
+               n.trees = n_trees,
+               interaction.depth = interaction.depth[i],
+               bag.fraction = 0.5)
+  
+  #best_iter <- gbm.perf(model, plot.it = FALSE,method= "OOB")
+  predictions <- predict(model, data_test, n.trees = n_trees)
+  
+  
+  
+  model_name <- paste("depth:", interaction.depth[i])
+  models_list[[model_name]] <- model
+  
+   
+  data_test$predictions <- predict(model, data_test, n.trees = best_iter)
+  rmse <- data_test %>%
+    left_join(val_reel, by = c("date", "segment_id")) %>%
+    mutate(error = abs(vehicle_reel - predictions)))
+    print(rmse$error)
+     rmse <- rmse %>%  summarise(rmse = sqrt(mean(error^2, na.rm = TRUE)),
+              mae = mean(error,na.rm=T)) %>% mutate(shrinkage = shrinkage[i], n_trees = n_trees[j]) %>% pull(mae)
+  
+  results <- rbind(results, data.frame(
+    model_param = model_name,
+    shrinkage = shrinkage,
+    n_trees = n_trees,
+    mae = rmse
+  ))
+}
+
+results
+
+shrinkage <- 0.5
 ```
 
