@@ -26,7 +26,7 @@ Burel %>% ggplot(aes(x = date, y = vehicle, color = imputed)) +
 
 
 ```{r}
-data_imput <- impute_missing_data(dataV2)
+data_V2<- impute_missing_data(dataV2)
 ```
 
 
@@ -418,7 +418,7 @@ analyze_traffic <- function(data, segment_id) {
 # Utilisation de la fonction
 
 # Créer une liste de tous les segment_id uniques
-unique_segments <- unique(data_imput$segment_id)
+unique_segments <- unique(data_V2$segment_id)
 
 # Initialiser une liste vide pour stocker les résultats
 list_result <- list()
@@ -426,7 +426,7 @@ list_result <- list()
 # Boucle sur chaque segment_id
 for (id in unique_segments) {
   tryCatch({
-    results <- analyze_traffic(data_imput, id)
+    results <- analyze_traffic(data_V2, id)
     list_result[[as.character(id)]] <- results
     
     # Afficher les graphiques (optionnel)
