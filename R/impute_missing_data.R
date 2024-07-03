@@ -9,14 +9,19 @@
 #'
 #' @return A preprocessed data frame ready for imputation.
 #'
+#' @export
+#'
 #' @importFrom lubridate day hour month year week wday minute
 #' @importFrom dplyr mutate %>%
 #'
 #' @examples
-#' data <- validate_and_preprocess_data(data = traffic,
-#'                                      transport_type = "car",
-#'                                      sensors_id = 9000001844,
-#'                                      base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date"))
+#' data <- validate_and_preprocess_data(
+#'   data = traffic,
+#'   transport_type = "car",
+#'   sensors_id = 9000001844,
+#'   base_vars = c("day_of_month", "hour", "weekday", "month", "year",
+#'                 "vacation", "week_number", "segment_id", "date")
+#' )
 #'
 
 validate_and_preprocess_data <-
@@ -129,23 +134,31 @@ validate_and_preprocess_data <-
 #'
 #' @return A data frame with imputed values and imputation flags.
 #'
+#' @export
+#'
 #' @importFrom dplyr select mutate bind_rows %>%
 #' @importFrom stats complete.cases na.omit predict
 #' @importFrom ranger ranger
 #'
 #'
 #' @examples
-#' data <- validate_and_preprocess_data(data = traffic,
-#'                                      transport_type = "car",
-#'                                      sensors_id = 9000001844,
-#'                                      base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date") )
+#' data <- validate_and_preprocess_data(
+#'   data = traffic,
+#'   transport_type = "car",
+#'   sensors_id = 9000001844,
+#'   base_vars = c("day_of_month", "hour", "weekday", "month", "year",
+#'                 "vacation", "week_number", "segment_id", "date")
+#' )
 #'
-#' data <- create_and_train_model(data = data,
-#'                             target = "car",
-#'                             base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date"),
-#'                             threshold_uptime = 0.5)
-#'
-#'
+#' data <- create_and_train_model(
+#'   data = data,
+#'   target = "car",
+#'   base_vars = c("day_of_month", "hour", "weekday", "month", "year",
+#'                 "vacation", "week_number", "segment_id", "date"),
+#'   threshold_uptime = 0.5
+#' )
+
+
 create_and_train_model <-
   function(data, target, base_vars, threshold_uptime) {
     # Prepare data for Random Forest
@@ -211,6 +224,8 @@ create_and_train_model <-
 #' @param threshold_uptime Numeric. Threshold for uptime to determine missing values. Default is 0.5.
 #'
 #' @return A data frame with imputed values for the specified transport type and a new column indicating whether the values were imputed or original.
+#'
+#' @export
 #'
 #' @importFrom dplyr left_join %>% select arrange
 #'
