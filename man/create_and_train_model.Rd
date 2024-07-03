@@ -2,25 +2,35 @@
 % Please edit documentation in R/impute_missing_data.R
 \name{create_and_train_model}
 \alias{create_and_train_model}
-\title{TODO}
+\title{Create and train Random Forest model for traffic imputation}
 \usage{
 create_and_train_model(data, target, base_vars, threshold_uptime)
 }
 \arguments{
-\item{data}{TBD}
+\item{data}{A preprocessed data frame containing traffic data.}
 
-\item{target}{TBD}
+\item{target}{Character. The target variable to impute.}
 
-\item{base_vars}{TBD}
+\item{base_vars}{Character vector. Base variables used for prediction.}
 
-\item{threshold_uptime}{TBD}
+\item{threshold_uptime}{Numeric. Threshold for uptime to determine missing values.}
 }
 \value{
-TBD
+A data frame with imputed values and imputation flags.
 }
 \description{
-TODO
+This function creates and trains a Random Forest model for imputing missing traffic data.
 }
 \examples{
-1+1
+data <- validate_and_preprocess_data(data = traffic,
+                                     transport_type = "car",
+                                     sensors_id = 9000001844,
+                                     base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date") )
+
+data <- create_and_train_model(data = data,
+                            target = "car",
+                            base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date"),
+                            threshold_uptime = 0.5)
+
+
 }

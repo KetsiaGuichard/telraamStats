@@ -2,30 +2,48 @@
 % Please edit documentation in R/impute_missing_data.R
 \name{impute_missing_data}
 \alias{impute_missing_data}
-\title{TODO}
+\title{Impute missing data for traffic analysis}
 \usage{
 impute_missing_data(
   data,
-  sensors_name = NULL,
+  sensors_id = NULL,
   transport_type = "vehicle",
   threshold_uptime = 0.5
 )
 }
 \arguments{
-\item{data}{TBD}
+\item{data}{A data frame containing the traffic data.}
 
-\item{sensors_name}{TBD}
+\item{sensors_id}{Character vector. Id of the sensors to include in the analysis. Default is NULL (all sensors).}
 
-\item{transport_type}{TBD}
+\item{transport_type}{Character. Type of transport to impute. Options are "car", "vehicle", "heavy", or "all". Default is "vehicle".}
 
-\item{threshold_uptime}{TBD}
+\item{threshold_uptime}{Numeric. Threshold for uptime to determine missing values. Default is 0.5.}
 }
 \value{
-TBD
+A data frame with imputed values for the specified transport type and a new column indicating whether the values were imputed or original.
 }
 \description{
-TODO
+This function imputes missing data for traffic analysis using Random Forest models.
+}
+\details{
+The function requires specific columns to be present in the input data:
+day_of_month, hour, weekday, month, year, vacation, week_number, segment_id, date, car, heavy, and uptime.
+
+Vehicle is calculated as the sum of cars and heavy vehicles providing a good estimate of the total traffic.
+
+When transport_type is "all", the function imputes values for car, vehicle, and heavy separately.
+
+The function uses the uptime column to determine which data points need imputation. Values with uptime below the threshold_uptime are considered missing and are imputed.
+
+Time interval could be hourly or quarterly. The function will automatically detect the time interval based on the data and add a minute variable if its quarterly.
 }
 \examples{
-1+1
+traffic_clean <- retrieve_missing_data(traffic)
+ traffic_imputed <- impute_missing_data(traffic_clean,
+   sensors_id = 9000001844,
+   transport_type = "vehicle",
+   threshold_uptime = 0.5)
+ table(traffic_imputed$imputed)
+
 }
