@@ -209,6 +209,7 @@ create_and_train_model <-
 #' @param sensors_id Character vector. Id of the sensors to include in the analysis. Default is NULL (all sensors).
 #' @param transport_type Character. Type of transport to impute. Options are "car", "vehicle", "heavy", or "all". Default is "vehicle".
 #' @param threshold_uptime Numeric. Threshold for uptime to determine missing values. Default is 0.5.
+#' @param base_vars Character vector. Base variables used for prediction. Default is c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id").
 #'
 #' @return A data frame with imputed values for the specified transport type and a new column indicating whether the values were imputed or original.
 #'
@@ -238,7 +239,8 @@ impute_missing_data <-
   function(data,
            sensors_id = NULL,
            transport_type = "vehicle",
-           threshold_uptime = 0.5) {
+           threshold_uptime = 0.5,
+           add_vars = NULL) {
     # Define constants
     base_vars <-
       c(
@@ -252,6 +254,9 @@ impute_missing_data <-
         "segment_id",
         "date"
       )
+    if (!is.null(add_vars)) {
+      base_vars <- c(base_vars, add_vars)
+    }
 
     # Add minute column if interval is "quarterly"
     if (data$interval[1] == "quarterly") {
