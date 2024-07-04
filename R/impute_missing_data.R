@@ -9,19 +9,14 @@
 #'
 #' @return A preprocessed data frame ready for imputation.
 #'
-#' @export
-#'
 #' @importFrom lubridate day hour month year week wday minute
 #' @importFrom dplyr mutate %>%
 #'
 #' @examples
-#' data <- validate_and_preprocess_data(
-#'   data = traffic,
-#'   transport_type = "car",
-#'   sensors_id = 9000001844,
-#'   base_vars = c("day_of_month", "hour", "weekday", "month", "year",
-#'                 "vacation", "week_number", "segment_id", "date")
-#' )
+#' data <- validate_and_preprocess_data(data = traffic,
+#'                                      transport_type = "car",
+#'                                      sensors_id = 9000001844,
+#'                                      base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date"))
 #'
 
 validate_and_preprocess_data <-
@@ -134,31 +129,23 @@ validate_and_preprocess_data <-
 #'
 #' @return A data frame with imputed values and imputation flags.
 #'
-#' @export
-#'
 #' @importFrom dplyr select mutate bind_rows %>%
 #' @importFrom stats complete.cases na.omit predict
 #' @importFrom ranger ranger
 #'
 #'
 #' @examples
-#' data <- validate_and_preprocess_data(
-#'   data = traffic,
-#'   transport_type = "car",
-#'   sensors_id = 9000001844,
-#'   base_vars = c("day_of_month", "hour", "weekday", "month", "year",
-#'                 "vacation", "week_number", "segment_id", "date")
-#' )
+#' data <- validate_and_preprocess_data(data = traffic,
+#'                                      transport_type = "car",
+#'                                      sensors_id = 9000001844,
+#'                                      base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date") )
 #'
-#' data <- create_and_train_model(
-#'   data = data,
-#'   target = "car",
-#'   base_vars = c("day_of_month", "hour", "weekday", "month", "year",
-#'                 "vacation", "week_number", "segment_id", "date"),
-#'   threshold_uptime = 0.5
-#' )
-
-
+#' data <- create_and_train_model(data = data,
+#'                             target = "car",
+#'                             base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date"),
+#'                             threshold_uptime = 0.5)
+#'
+#'
 create_and_train_model <-
   function(data, target, base_vars, threshold_uptime) {
     # Prepare data for Random Forest
@@ -222,10 +209,9 @@ create_and_train_model <-
 #' @param sensors_id Character vector. Id of the sensors to include in the analysis. Default is NULL (all sensors).
 #' @param transport_type Character. Type of transport to impute. Options are "car", "vehicle", "heavy", or "all". Default is "vehicle".
 #' @param threshold_uptime Numeric. Threshold for uptime to determine missing values. Default is 0.5.
+#' @param base_vars Character vector. Base variables used for prediction. Default is c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id").
 #'
 #' @return A data frame with imputed values for the specified transport type and a new column indicating whether the values were imputed or original.
-#'
-#' @export
 #'
 #' @importFrom dplyr left_join %>% select arrange
 #'
@@ -242,8 +228,7 @@ create_and_train_model <-
 #'Time interval could be hourly or quarterly. The function will automatically detect the time interval based on the data and add a minute variable if its quarterly.
 #'
 #' @examples
-#' traffic_clean <- retrieve_missing_data(traffic)
-#'  traffic_imputed <- impute_missing_data(traffic_clean,
+#'  traffic_imputed <- impute_missing_data(traffic,
 #'    sensors_id = 9000001844,
 #'    transport_type = "vehicle",
 #'    threshold_uptime = 0.5)
@@ -254,7 +239,8 @@ impute_missing_data <-
   function(data,
            sensors_id = NULL,
            transport_type = "vehicle",
-           threshold_uptime = 0.5) {
+           threshold_uptime = 0.5,
+           add_vars = NULL) {
     # Define constants
     base_vars <-
       c(
@@ -268,6 +254,14 @@ impute_missing_data <-
         "segment_id",
         "date"
       )
+    if (!is.null(add_vars)) {
+
+      if (!is.character(add_vars)) {stop("add_vars must be a character vector")}
+      if ((any(add_vars %in% base_vars))) {stop("add_vars must be different from base_vars : day_of_month,hour,weekday,month,year,vacation,week_number,segment_id ")}
+      if (!all(add_vars %in% colnames(data))) {stop("add_vars must be present in the data")}
+
+      base_vars <- c(base_vars, add_vars)
+    }
 
     # Add minute column if interval is "quarterly"
     if (data$interval[1] == "quarterly") {
