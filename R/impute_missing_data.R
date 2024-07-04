@@ -255,7 +255,12 @@ impute_missing_data <-
         "date"
       )
     if (!is.null(add_vars)) {
-      base_vars <- c(base_vars, add_vars)
+
+      if (!is.character(add_vars)) {stop("add_vars must be a character vector")}
+      if ((any(add_vars %in% base_vars))) {stop("add_vars must be different from base_vars : day_of_month,hour,weekday,month,year,vacation,week_number,segment_id ")}
+      if (!all(add_vars %in% colnames(data))) {stop("add_vars must be present in the data")}
+
+          base_vars <- c(base_vars, add_vars)
     }
 
     # Add minute column if interval is "quarterly"
