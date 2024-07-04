@@ -1,0 +1,1074 @@
+```{r}
+dataV2 <- read.csv("/Users/paulvallee/Desktop/Stage CREM/Code R/data/20230518_20240517_v2_sensors_extract.csv")
+dataV2$uptime_quality <- ifelse(dataV2$uptime >=0.5 ,TRUE,FALSE)
+dataV2 <- stop_sensor(dataV2)
+dataV2 <- quarterly_to_hourly(dataV2)
+#dataV2 <- dataV2 %>% rename(segment_name = segment_fullname) %>%  filter(segment_name != "") %>%  mutate(segment_name = as.factor(as.character(gsub("[0-9-]+", "",segment_name))),uptime = as.numeric(uptime))
+dataV2
+
+
+
+```
+
+```{r}
+Burel <- dataV2 %>% filter(segment_fullname == "9000002156 - Rue Fabien Burel")
+Burel <- impute_missing_data(Burel)
+Burel$imputed %>% table()
+
+
+Burel %>% ggplot(aes(x = date, y = vehicle, color = imputed)) +
+  geom_point() +
+  labs(title = "Vehicle counts for Rue Fabien Burel",
+       x = "Hour",
+       y = "Vehicle count") +
+  theme_minimal()
+```
+
+
+```{r}
+data_V2<- impute_missing_data(dataV2)
+```
+
+
+```{r}
+library(changepoint)
+res_plt <- cpt.meanvar(Burel$vehicle, method = "PELT",penalty = "MBIC")
+plot(res_plt, type = "l",cpt.col = "red",cpt.width = 2)
+```
+```{r}
+library(changepoint)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# Fonction pour appliquer cpt.meanvar avec différentes pénalités
+apply_cpt_meanvar <- function(data, penalties) {
+  results <- list()
+  for (penalty in penalties) {
+    tryCatch({
+      changepoint <- cpt.meanvar(data, method = "PELT", penalty = penalty)
+      results[[penalty]] <- changepoint
+    }, error = function(e) {
+      message(sprintf("Error with penalty %s: %s", penalty, e$message))
+    })
+  }
+  return(results)
+}
+
+# Fonction pour évaluer la qualité du modèle
+evaluate_model <- function(data, changepoint) {
+  segments <- cpts(changepoint)
+  n <- length(data)
+  
+  # Calculer la somme des carrés des résidus
+  rss <- sum((data - rep(param.est(changepoint)$mean, diff(c(0, segments, n))))^2)
+  
+  # Calculer le BIC
+  k <- length(segments) + 1  # nombre de segments
+  bic <- n * log(rss/n) + k * log(n)
+  
+  # Calculer l'AIC
+  aic <- n * log(rss/n) + 2 * k
+  
+  return(list(rss = rss, bic = bic, aic = aic, num_changes = k-1))
+}
+
+# Fonction principale
+analyze_changepoints <- function(data, penalties) {
+  # Appliquer cpt.meanvar avec différentes pénalités
+  results <- apply_cpt_meanvar(data, penalties)
+  
+  # Évaluer chaque modèle
+  evaluations <- lapply(results, function(x) evaluate_model(data, x))
+  
+  # Créer un dataframe avec les résultats
+  eval_df <- do.call(rbind, lapply(names(evaluations), function(penalty) {
+    data.frame(
+      penalty = penalty,
+      rss = evaluations[[penalty]]$rss,
+      bic = evaluations[[penalty]]$bic,
+      aic = evaluations[[penalty]]$aic,
+      num_changes = evaluations[[penalty]]$num_changes
+    )
+  }))
+  
+  # Trouver la meilleure pénalité basée sur le BIC
+  best_penalty <- eval_df$penalty[which.min(eval_df$bic)]
+  
+  # Visualiser les résultats
+  p <- ggplot(eval_df, aes(x = penalty)) +
+    geom_point(aes(y = bic, color = "BIC")) +
+    geom_point(aes(y = aic, color = "AIC")) +
+    scale_color_manual(values = c("BIC" = "blue", "AIC" = "green")) +
+    labs(title = "Critères d'information vs Pénalité",
+         x = "Pénalité", y = "Valeur du critère") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  print(p)
+  
+  return(list(evaluations = eval_df, best_penalty = best_penalty))
+}
+
+# Utilisation
+penalties <- c("SIC", "BIC", "AIC", "MBIC", "MAIC", "Hannan-Quinn", "Asymptotic", "Manual")
+results <- analyze_changepoints(Burel$vehicle, penalties)
+
+# Afficher les résultats
+print(results$evaluations)
+cat("Meilleure pénalité:", results$best_penalty)
+
+# Appliquer le modèle final avec la meilleure pénalité
+final_model <- cpt.meanvar(Burel$vehicle, method = "PELT", penalty = "MBIC")
+
+# Visualiser les points de rupture
+plot(final_model)
+```
+
+```{r}
+# Appliquer le modèle avec MBIC
+model_mbic <- cpt.meanvar(Burel$vehicle, method = "PELT", penalty = "MBIC")
+
+# Extraire les points de changement
+changepoints <- cpts(model_mbic)
+
+# Obtenir les dates correspondant aux points de changement
+changepoint_dates <- Burel$date[changepoints]
+
+print(changepoint_dates)
+```
+
+```{r}
+library(ggplot2)
+
+# Créer un dataframe pour la visualisation
+df_plot <- data.frame(
+  date = Burel$date,
+  vehicle = Burel$vehicle,
+  changepoint = ifelse(seq_along(Burel$date) %in% changepoints, "Yes", "No")
+)
+
+# Créer le graphique
+ggplot(df_plot, aes(x = date, y = vehicle)) +
+  geom_line() +
+  geom_point(data = df_plot[df_plot$changepoint == "Yes",], aes(color = "Changepoint"), size = 3) +
+  scale_color_manual(values = c("Changepoint" = "red")) +
+  theme_minimal() +
+  labs(title = "Traffic Volume with Changepoints", x = "Date", y = "Vehicle Count")
+```
+```{r}
+library(dplyr)
+
+# Fonction pour calculer les statistiques par segment
+analyze_segment <- function(data) {
+  data %>%
+    summarise(
+      start_date = first(date),
+      end_date = last(date),
+      mean_traffic = mean(vehicle),
+      sd_traffic = sd(vehicle),
+      min_traffic = min(vehicle),
+      max_traffic = max(vehicle)
+    )
+}
+
+# Créer une liste de segments
+segments <- split(df_plot, cumsum(df_plot$changepoint == "Yes"))
+
+# Analyser chaque segment
+segment_analysis <- lapply(segments, analyze_segment)
+
+# Combiner les résultats
+segment_summary <- do.call(rbind, segment_analysis)
+print(segment_summary)
+```
+```{r}
+# Fonction pour détecter les anomalies dans un segment
+detect_anomalies <- function(data) {
+  mean_traffic <- mean(data$vehicle)
+  sd_traffic <- sd(data$vehicle)
+  threshold <- 3 * sd_traffic
+  
+  data %>%
+    mutate(anomaly = ifelse(abs(vehicle - mean_traffic) > threshold, "Yes", "No"))
+}
+
+# Appliquer la détection d'anomalies à chaque segment
+segments_with_anomalies <- lapply(segments, detect_anomalies)
+
+# Combiner les résultats
+df_anomalies <- do.call(rbind, segments_with_anomalies)
+
+# Visualiser les anomalies
+ggplot(df_anomalies, aes(x = date, y = vehicle)) +
+  geom_line() +
+  geom_point(data = df_anomalies[df_anomalies$anomaly == "Yes",], aes(color = "Anomaly"), size = 3) +
+  geom_point(data = df_anomalies[df_anomalies$changepoint == "Yes",], aes(color = "Changepoint"), size = 3) +
+  scale_color_manual(values = c("Anomaly" = "blue", "Changepoint" = "red")) +
+  theme_minimal() +
+  labs(title = "Traffic Volume with Changepoints and Anomalies", x = "Date", y = "Vehicle Count")
+```
+
+
+Graphique avec des barres horizontales pour les points de changement :
+```{r}
+library(ggplot2)
+library(lubridate)
+
+# Créer un dataframe pour la visualisation
+df_plot <- data.frame(
+  date = Burel$date,
+  vehicle = Burel$vehicle,
+  changepoint = ifelse(seq_along(Burel$date) %in% changepoints, "Yes", "No")
+)
+
+# Créer le graphique
+ggplot(df_plot, aes(x = date, y = vehicle)) +
+  geom_line() +
+  geom_vline(data = df_plot[df_plot$changepoint == "Yes",], 
+             aes(xintercept = date), color = "red", linetype = "dashed") +
+  geom_point(data = df_plot[df_plot$changepoint == "Yes",], 
+             aes(color = "Changepoint"), size = 3) +
+  scale_color_manual(values = c("Changepoint" = "red")) +
+  theme_minimal() +
+  labs(title = "Traffic Volume with Changepoints", x = "Date", y = "Vehicle Count") +
+  theme(legend.position = "bottom")
+```
+Comparaison des différentes périodes :
+```{r}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# Créer une liste de segments
+segments <- split(df_plot, cumsum(df_plot$changepoint == "Yes"))
+
+# Préparer les données pour le boxplot
+boxplot_data <- do.call(rbind, lapply(seq_along(segments), function(i) {
+  segment <- segments[[i]]
+  segment$period <- i
+  return(segment)
+}))
+
+# Créer un dataframe avec les informations sur les périodes
+period_info <- boxplot_data %>%
+  group_by(period) %>%
+  summarise(
+    start_date = min(date),
+    end_date = max(date),
+    n_days = as.numeric(difftime(max(date), min(date), units = "days"))
+  )
+
+# Créer des labels plus explicites pour l'axe des x
+period_labels <- paste0( format(period_info$end_date, "%Y-%m-%d"), "\n", format(period_info$start_date, "%Y-%m-%d"))
+
+# Convertir la période en facteur avec les nouveaux labels
+boxplot_data$period <- factor(boxplot_data$period, 
+                              levels = period_info$period,
+                              labels = period_labels)
+
+# Créer le graphique avec boxplots
+ggplot(boxplot_data, aes(x = period, y = vehicle)) +
+  geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
+  theme_minimal() +
+  labs(title = "Comparison of Traffic Periods",
+       x = "Period Start Date",
+       y = "Vehicle Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10))
+
+# Afficher les informations détaillées sur les périodes
+print(period_info)
+```
+
+Détection des anomalies 
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Fonction pour détecter les anomalies dans un segment
+detect_anomalies <- function(data) {
+  mean_traffic <- mean(data$vehicle)
+  sd_traffic <- sd(data$vehicle)
+  threshold <- 3 * sd_traffic
+  
+  data %>%
+    mutate(anomaly = ifelse(abs(vehicle - mean_traffic) > threshold, "Yes", "No"),
+           anomaly_direction = case_when(
+             vehicle > mean_traffic + threshold ~ "High",
+             vehicle < mean_traffic - threshold ~ "Low",
+             TRUE ~ "Normal"
+           ))
+}
+
+# Appliquer la détection d'anomalies à chaque segment
+segments_with_anomalies <- lapply(segments, detect_anomalies)
+
+# Combiner les résultats
+df_anomalies <- do.call(rbind, segments_with_anomalies)
+
+# Visualiser les anomalies
+ggplot(df_anomalies, aes(x = date, y = vehicle)) +
+  geom_line(color = "grey") +
+  geom_point(data = df_anomalies[df_anomalies$anomaly == "Yes",], 
+             aes(color = anomaly_direction), size = 3) +
+  geom_vline(data = df_anomalies[df_anomalies$changepoint == "Yes",], 
+             aes(xintercept = date), color = "red", linetype = "dashed") +
+  scale_color_manual(values = c("High" = "red", "Low" = "blue", "Normal" = "green")) +
+  theme_minimal() +
+  labs(title = "Traffic Volume with Changepoints and Anomalies", 
+       x = "Date", y = "Vehicle Count",
+       color = "Anomaly Type") +
+  theme(legend.position = "bottom")
+```
+
+
+
+```{r}
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(changepoint)
+
+analyze_traffic <- function(data, segment_id) {
+  # Filtrer les données pour le segment spécifié
+  segment_data <- data %>% filter(segment_id == !!segment_id)
+
+  # Appliquer le modèle PELT avec MBIC
+  model_mbic <- cpt.meanvar(segment_data$vehicle, method = "PELT", penalty = "MBIC")
+  changepoints <- cpts(model_mbic)
+  
+  # Créer un dataframe pour la visualisation
+  df_plot <- segment_data %>%
+    mutate(changepoint = ifelse(row_number() %in% changepoints, "Yes", "No"))
+  
+  # 1. Plot initial
+  plot_initial <- plot(model_mbic)
+  
+  # 2. Boxplots
+  segments <- split(df_plot, cumsum(df_plot$changepoint == "Yes"))
+  
+  boxplot_data <- map_dfr(seq_along(segments), ~{
+    segment <- segments[[.x]]
+    segment %>% mutate(period = .x)
+  })
+  
+  period_info <- boxplot_data %>%
+    group_by(period) %>%
+    summarise(
+      start_date = min(date),
+      end_date = max(date),
+      n_days = as.numeric(difftime(max(date), min(date), units = "days"))
+    )
+  
+  period_labels <- paste0(format(period_info$start_date, "%m-%d"), "\n", format(period_info$end_date, "%m-%d"))
+  
+  boxplot_data$period <- factor(boxplot_data$period, 
+                                levels = period_info$period,
+                                labels = period_labels)
+  
+  plot_boxplot <- ggplot(boxplot_data, aes(x = period, y = vehicle)) +
+    geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
+    theme_minimal() +
+    labs(title = paste("Comparison of Traffic Periods for", segment_id),
+         x = "Period Start Date", y = "Vehicle Count") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 10))
+  
+  # 3. Changepoints with anomalies
+  detect_anomalies <- function(data) {
+    mean_traffic <- mean(data$vehicle, na.rm = TRUE)
+    sd_traffic <- sd(data$vehicle, na.rm = TRUE)
+    threshold <- 3 * sd_traffic
+    
+    data %>%
+      mutate(anomaly = ifelse(abs(vehicle - mean_traffic) > threshold, "Yes", "No"),
+             anomaly_direction = case_when(
+               vehicle > mean_traffic + threshold ~ "High",
+               vehicle < mean_traffic - threshold ~ "Low",
+               TRUE ~ "Normal"
+             ))
+  }
+  
+  segments_with_anomalies <- map(segments, detect_anomalies)
+  df_anomalies <- bind_rows(segments_with_anomalies)
+  
+  # Filtrer uniquement les points anormaux
+  df_anomalies_only <- df_anomalies %>% filter(anomaly == "Yes")
+  
+  # Affichage des anomalies sur la série
+  plot_anomalies <- ggplot(df_anomalies, aes(x = date, y = vehicle)) +
+    geom_line(color = "grey") +
+    geom_point(data = df_anomalies_only, aes(color = anomaly_direction), size = 3) +
+    scale_color_manual(values = c("High" = "red", "Low" = "blue")) +
+    theme_minimal() +
+    labs(title = paste("Traffic Volume with Anomalies for Segment", segment_id),
+         x = "Date", y = "Vehicle Count",
+         color = "Anomaly Type") +
+    theme(legend.position = "bottom")
+  
+  # Retourner les trois graphiques dans une liste
+  return(list(
+    initial_plot = plot_initial,
+    boxplot = plot_boxplot,
+    anomalies_plot = plot_anomalies
+  ))
+}
+
+# Utilisation de la fonction
+
+# Créer une liste de tous les segment_id uniques
+unique_segments <- unique(data_V2$segment_id)
+
+# Initialiser une liste vide pour stocker les résultats
+list_result <- list()
+
+# Boucle sur chaque segment_id
+for (id in unique_segments) {
+  tryCatch({
+    results <- analyze_traffic(data_V2, id)
+    list_result[[as.character(id)]] <- results
+    
+    # Afficher les graphiques (optionnel)
+    print(results$initial_plot)
+    print(results$boxplot)
+    print(results$anomalies_plot)
+  }, error = function(e) {
+    cat("Erreur pour le segment_id", id, ":", conditionMessage(e), "\n")
+  })
+}
+
+```
+
+```{r}
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(changepoint)
+library(gridExtra)
+
+analyze_traffic <- function(data, segment_id,start_date = NULL,end_date = NULL) {
+  # Filtrer les données pour le segment spécifié
+  segment_data <- data %>% filter(segment_id == !!segment_id)
+    # Filtrer les données pour la période spécifié
+      if (!is.null(start_date)) {
+        segment_data <- segment_data %>%
+          filter(date >= !!start_date)
+      }
+      
+      if (!is.null(end_date)) {
+        segment_data <- segment_data %>%
+          filter(date <= !!end_date)
+      }
+  
+  
+  segment_name <- unique(segment_data$segment_name)
+  # Appliquer le modèle PELT avec MBIC
+  model_mbic <- cpt.meanvar(segment_data$vehicle, method = "PELT", penalty = "MBIC",, pen.value = 1.5 * log(length(segment_data$vehicle)))
+  changepoints <- cpts(model_mbic)
+  
+  # Créer un dataframe pour la visualisation
+  df_plot <- segment_data %>%
+    mutate(changepoint = ifelse(row_number() %in% changepoints, "Yes", "No"))
+  
+  # 1. Plot PELT en ggplot
+  plot_pelt <- ggplot(df_plot, aes(x = 1:nrow(df_plot), y = vehicle)) +
+    geom_line() +
+    geom_vline(xintercept = changepoints, color = "red", linetype = "dashed") +
+    theme_minimal() +
+    labs(title = paste("PELT Changepoints for Segment", segment_name),
+         x = "Time", y = "Vehicle Count")
+  
+  # 2. Boxplots
+  segments <- split(df_plot, cumsum(df_plot$changepoint == "Yes"))
+  
+  boxplot_data <- map_dfr(seq_along(segments), ~{
+    segment <- segments[[.x]]
+    segment %>% mutate(period = .x)
+  })
+  
+  period_info <- boxplot_data %>%
+    group_by(period) %>%
+    summarise(
+      start_period = min(date),
+      end_period = max(date),
+      n_days = as.numeric(difftime(max(date), min(date), units = "days"))
+    )
+  
+  period_labels <- paste0(format(period_info$start_period, "%d-%m-%Y"), "\n", format(period_info$end_period,"%d-%m-%Y"))
+  
+  boxplot_data$period <- factor(boxplot_data$period, 
+                                levels = period_info$period,
+                                labels = period_labels)
+  
+  plot_boxplot <- ggplot(boxplot_data, aes(x = period, y = vehicle)) +
+    geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
+    theme_minimal() +
+    labs(title = paste("Traffic Periods for", segment_name),
+         x = "Period", y = "Vehicle Count") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 10))
+  
+  # Combiner les graphiques
+  combined_plot <- grid.arrange(
+    plot_pelt,
+    plot_boxplot,
+    nrow = 2
+  )
+  
+  return(combined_plot)
+}
+
+# Utilisation de la fonction
+unique_segments <- unique(data_V2$segment_id)
+list_result <- list()
+for (id in unique_segments) {
+  tryCatch({
+    result <- analyze_traffic(data_V2, id)
+    list_result[[as.character(id)]] <- result
+    
+    # Afficher le graphique combiné
+      result
+      }, error = function(e) {
+    cat("Erreur pour le segment_id", id, ":", conditionMessage(e), "\n")
+  })
+}
+```
+
+
+
+```{r}
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(changepoint)
+library(gridExtra)
+library(zoo)
+
+analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL, 
+                            method = "default", min_distance = 24, min_period_length = 30) {
+  # Filtrer les données pour le segment spécifié
+  segment_data <- data %>% filter(segment_id == !!segment_id)
+  
+  # Filtrer les données pour la période spécifiée
+  if (!is.null(start_date)) {
+    segment_data <- segment_data %>% filter(date >= !!start_date)
+  }
+  
+  if (!is.null(end_date)) {
+    segment_data <- segment_data %>% filter(date <= !!end_date)
+  }
+  
+  segment_name <- unique(segment_data$segment_name)
+  
+  # Appliquer différentes méthodes selon le paramètre 'method'
+  if (method == "filter") {
+    filter_changepoints <- function(changepoints, min_distance) {
+      filtered <- changepoints[1]
+      for (cp in changepoints[-1]) {
+        if (cp - tail(filtered, 1) >= min_distance) {
+          filtered <- c(filtered, cp)
+        }
+      }
+      return(filtered)
+    }
+    
+    model_mbic <- cpt.meanvar(segment_data$vehicle, method = "PELT", penalty = "MBIC")
+    changepoints <- cpts(model_mbic)
+    changepoints <- filter_changepoints(changepoints, min_distance)
+  } 
+  else if (method == "merge") {
+    merge_short_periods <- function(changepoints, data, min_period_length) {
+      periods <- diff(c(0, changepoints, nrow(data)))
+      merged <- c()
+      i <- 1
+      while (i <= length(periods)) {
+        if (periods[i] < min_period_length && i < length(periods)) {
+          periods[i+1] <- periods[i] + periods[i+1]
+        } else {
+          merged <- c(merged, sum(periods[1:i]))
+        }
+        i <- i + 1
+      }
+      return(merged[-length(merged)])
+    }
+    
+    model_mbic <- cpt.meanvar(segment_data$vehicle, method = "PELT", penalty = "MBIC")
+    changepoints <- cpts(model_mbic)
+    changepoints <- merge_short_periods(changepoints, segment_data, min_period_length)
+  } else if (method == "smooth") {
+    smoothed_data <- rollmean(segment_data$vehicle, k = 7, fill = T, align = "center")
+    model_mbic <- cpt.meanvar(smoothed_data, method = "PELT", penalty = "MBIC")
+    changepoints <- cpts(model_mbic)
+  } else {
+    # Méthode par défaut avec ajustement de pénalité
+    model_mbic <- cpt.meanvar(segment_data$vehicle, method = "PELT", penalty = "MBIC", 
+                              pen.value = 1.5 * log(length(segment_data$vehicle)))
+    changepoints <- cpts(model_mbic)
+  }
+  
+  # Créer un dataframe pour la visualisation
+  df_plot <- segment_data %>%
+    mutate(changepoint = ifelse(row_number() %in% changepoints, "Yes", "No"))
+  
+  # 1. Plot PELT en ggplot
+  plot_pelt <- ggplot(df_plot, aes(x = 1:nrow(df_plot), y = vehicle)) +
+    geom_line() +
+    geom_vline(xintercept = changepoints, color = "red", linetype = "dashed") +
+    theme_minimal() +
+    labs(title = paste("PELT Changepoints for Segment", segment_name),
+         x = "Time", y = "Vehicle Count")
+  
+  # 2. Boxplots
+  segments <- split(df_plot, cumsum(df_plot$changepoint == "Yes"))
+  
+  boxplot_data <- map_dfr(seq_along(segments), ~{
+    segment <- segments[[.x]]
+    segment %>% mutate(period = .x)
+  })
+  
+  period_info <- boxplot_data %>%
+    group_by(period) %>%
+    summarise(
+      start_period = min(date),
+      end_period = max(date),
+      n_days = as.numeric(difftime(max(date), min(date), units = "days"))
+    )
+  
+  period_labels <- paste0(format(period_info$start_period, "%d-%m-%Y"), "\n", format(period_info$end_period,"%d-%m-%Y"))
+  
+  boxplot_data$period <- factor(boxplot_data$period, 
+                                levels = period_info$period,
+                                labels = period_labels)
+  
+  plot_boxplot <- ggplot(boxplot_data, aes(x = period, y = vehicle)) +
+    geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
+    theme_minimal() +
+    labs(title = paste("Traffic Periods for", segment_name),
+         x = "Period", y = "Vehicle Count") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 10))
+  
+  # Combiner les graphiques
+  combined_plot <- arrangeGrob(
+    plot_pelt,
+    plot_boxplot,
+    nrow = 2
+  )
+  
+  return(combined_plot)
+}
+
+# Utilisation de la fonction
+unique_segments <- unique(data_V2$segment_id)
+list_result <- list()
+
+for (id in unique_segments) {
+  tryCatch({
+    # Essayer chaque méthode
+    methods <- c("default", "filter", "merge", "smooth")[]
+    for (method in methods) {
+      result <- suppressMessages(analyze_traffic(data_V2, id, method = method))
+      list_result[[paste(id, method, sep = "_")]] <- result
+      
+      # Afficher le graphique combiné
+      grid.newpage()
+      grid.draw(result)
+      title(main = paste("Method:", method), line = -1)
+    }
+  }, error = function(e) {
+    cat("Erreur pour le segment_id", id, ":", conditionMessage(e), "\n")
+  })
+}
+```
+
+
+
+```{r}
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(changepoint)
+library(gridExtra)
+library(zoo)
+
+analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL) {
+  # Filtrer les données pour le segment spécifié
+  segment_data <- data %>% filter(segment_id == !!segment_id)
+  
+  # Filtrer les données pour la période spécifiée
+  if (!is.null(start_date)) {
+    segment_data <- segment_data %>% filter(date >= !!start_date)
+  }
+  if (!is.null(end_date)) {
+    segment_data <- segment_data %>% filter(date <= !!end_date)
+  }
+  
+  segment_name <- unique(segment_data$segment_name)
+  
+  # Appliquer le lissage
+  smoothed_data <- rollmean(segment_data$vehicle, k = 7, fill = TRUE, align = "center")
+  
+  # Appliquer PELT sur les données lissées
+  model_mbic <- cpt.meanvar(smoothed_data, method = "PELT", penalty = "MBIC")
+  changepoints <- cpts(model_mbic)
+  
+  # Fonction pour fusionner les périodes courtes
+  merge_short_periods <- function(changepoints, data) {
+    periods <- diff(c(0, changepoints, nrow(data)))
+    merged <- c()
+    i <- 1
+    while (i <= length(periods)) {
+      if (periods[i] < 24 && i < length(periods)) { # Moins d'un jour (24 heures)
+        # Calculer les moyennes des périodes adjacentes
+        mean_current <- mean(data$vehicle[(sum(periods[1:(i-1)]) + 1):(sum(periods[1:i]))])
+        mean_next <- mean(data$vehicle[(sum(periods[1:i]) + 1):(sum(periods[1:(i+1)]))])
+        mean_prev <- if(i > 1) mean(data$vehicle[(sum(periods[1:(i-2)]) + 1):(sum(periods[1:(i-1)]))]) else Inf
+        
+        # Fusionner avec la période la plus proche en moyenne
+        if (abs(mean_current - mean_prev) <= abs(mean_current - mean_next) && i > 1) {
+          periods[i-1] <- periods[i-1] + periods[i]
+          periods <- periods[-(i)]
+        } else {
+          periods[i+1] <- periods[i] + periods[i+1]
+          periods <- periods[-(i)]
+        }
+      } else {
+        i <- i + 1
+      }
+    }
+    return(cumsum(periods)[-length(periods)])
+  }
+  
+  # Appliquer la fusion des périodes courtes
+  changepoints <- merge_short_periods(changepoints, segment_data)
+  
+  # Créer un dataframe pour la visualisation
+  df_plot <- segment_data %>%
+    mutate(changepoint = ifelse(row_number() %in% changepoints, "Yes", "No"))
+  
+  # Plot PELT
+  plot_pelt <- ggplot(df_plot, aes(x = 1:nrow(df_plot), y = vehicle)) +
+    geom_line() +
+    geom_vline(xintercept = changepoints, color = "red", linetype = "dashed") +
+    theme_minimal() +
+    labs(title = paste("PELT Changepoints for Segment", segment_name),
+         x = "Time", y = "Vehicle Count")
+  
+  # Boxplots
+  segments <- split(df_plot, cumsum(df_plot$changepoint == "Yes"))
+  
+  boxplot_data <- map_dfr(seq_along(segments), ~{
+    segment <- segments[[.x]]
+    segment %>% mutate(period = .x)
+  })
+  
+  period_info <- boxplot_data %>%
+    group_by(period) %>%
+    summarise(
+      start_period = min(date),
+      end_period = max(date),
+      n_days = as.numeric(difftime(max(date), min(date), units = "days"))
+    )
+  
+  period_labels <- paste0(format(period_info$start_period, "%d-%m-%Y"), "\n", format(period_info$end_period,"%d-%m-%Y"))
+  
+  boxplot_data$period <- factor(boxplot_data$period, 
+                                levels = period_info$period,
+                                labels = period_labels)
+  
+  plot_boxplot <- ggplot(boxplot_data, aes(x = period, y = vehicle)) +
+    geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
+    theme_minimal() +
+    labs(title = paste("Traffic Periods for", segment_name),
+         x = "Period", y = "Vehicle Count") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 10))
+  
+  # Combiner les graphiques
+  combined_plot <- arrangeGrob(
+    plot_pelt,
+    plot_boxplot,
+    nrow = 2
+  )
+  
+  return(combined_plot)
+}
+
+# Utilisation de la fonction
+unique_segments <- unique(data_V2$segment_id)
+list_result <- list()
+
+for (id in unique_segments) {
+  tryCatch({
+    result <- suppressMessages(analyze_traffic(data_V2, id))
+    list_result[[as.character(id)]] <- result
+    
+    # Afficher le graphique combiné
+    grid.newpage()
+    grid.draw(result)
+  }, error = function(e) {
+    cat("Erreur pour le segment_id", id, ":", conditionMessage(e), "\n")
+  })
+}
+```
+```{r}
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(changepoint)
+library(gridExtra)
+library(zoo)
+
+analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL) {
+  # Filtrer les données pour le segment spécifié
+  segment_data <- data %>% filter(segment_id == !!segment_id)
+  
+  # Filtrer les données pour la période spécifiée
+  if (!is.null(start_date)) {
+    segment_data <- segment_data %>% filter(date >= !!start_date)
+  }
+  if (!is.null(end_date)) {
+    segment_data <- segment_data %>% filter(date <= !!end_date)
+  }
+  
+  segment_name <- unique(segment_data$segment_name)
+  
+  # Appliquer le lissage
+  smoothed_data <- rollmean(segment_data$vehicle, k = 7, fill = TRUE, align = "center")
+  
+  # Appliquer PELT sur les données lissées
+  model_mbic <- cpt.meanvar(smoothed_data, method = "PELT", penalty = "MBIC")
+  changepoints <- cpts(model_mbic)
+  
+  # Fonction pour fusionner les périodes courtes
+  merge_short_periods <- function(changepoints, data) {
+    periods <- diff(c(0, changepoints, nrow(data)))
+    merged <- c()
+    i <- 1
+    while (i <= length(periods)) {
+      if (periods[i] < 24 && i < length(periods)) { # Moins d'un jour (24 heures)
+        # Calculer les moyennes des périodes adjacentes
+        mean_current <- mean(data$vehicle[(sum(periods[1:(i-1)]) + 1):(sum(periods[1:i]))])
+        mean_next <- mean(data$vehicle[(sum(periods[1:i]) + 1):(sum(periods[1:(i+1)]))])
+        mean_prev <- if(i > 1) mean(data$vehicle[(sum(periods[1:(i-2)]) + 1):(sum(periods[1:(i-1)]))]) else Inf
+        
+        # Fusionner avec la période la plus proche en moyenne
+        if (abs(mean_current - mean_prev) <= abs(mean_current - mean_next) && i > 1) {
+          periods[i-1] <- periods[i-1] + periods[i]
+          periods <- periods[-(i)]
+        } else {
+          periods[i+1] <- periods[i] + periods[i+1]
+          periods <- periods[-(i)]
+        }
+      } else {
+        i <- i + 1
+      }
+    }
+    return(cumsum(periods)[-length(periods)])
+  }
+  
+  # Appliquer la fusion des périodes courtes
+  changepoints <- merge_short_periods(changepoints, segment_data)
+  
+  # Créer un dataframe pour la visualisation
+  df_plot <- segment_data %>%
+    mutate(changepoint = ifelse(row_number() %in% changepoints, "Yes", "No"))
+  
+  # Plot PELT
+  plot_pelt <- ggplot(df_plot, aes(x = 1:nrow(df_plot), y = vehicle)) +
+    geom_line() +
+    geom_vline(xintercept = changepoints, color = "red", linetype = "dashed") +
+    theme_minimal() +
+    labs(title = paste("PELT Changepoints for Segment", segment_name),
+         x = "Time", y = "Vehicle Count")
+  
+  plot_pelt_interactive <- ggplotly(plot_pelt)
+
+  # Boxplots
+  segments <- split(df_plot, cumsum(df_plot$changepoint == "Yes"))
+  
+  boxplot_data <- map_dfr(seq_along(segments), ~{
+    segment <- segments[[.x]]
+    segment %>% mutate(period = .x)
+  })
+  
+  period_info <- boxplot_data %>%
+    group_by(period) %>%
+    summarise(
+      start_period = min(date),
+      end_period = max(date),
+      n_days = as.numeric(difftime(max(date), min(date), units = "days"))
+    )
+  
+  period_labels <- paste0(format(period_info$start_period, "%d-%m-%Y"), "\n", format(period_info$end_period,"%d-%m-%Y"))
+  
+  boxplot_data$period <- factor(boxplot_data$period, 
+                                levels = period_info$period,
+                                labels = period_labels)
+  
+  plot_boxplot <- ggplot(boxplot_data, aes(x = period, y = vehicle)) +
+    geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
+    theme_minimal() +
+    labs(title = paste("Traffic Periods for", segment_name),
+         x = "Period", y = "Vehicle Count") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 10))
+  
+  plot_boxplot_interactive <- ggplotly(plot_boxplot)
+  # Combiner les graphiques
+  combined_plot <- subplot(plot_pelt_interactive, 
+                           plot_boxplot_interactive, nrows = 2)
+
+  
+  return(combined_plot)
+}
+
+# Utilisation de la fonction
+unique_segments <- unique(data_V2$segment_id)
+list_result <- list()
+
+for (id in unique_segments) {
+  tryCatch({
+    result <- suppressMessages(analyze_traffic(data_V2, id))
+    list_result[[as.character(id)]] <- result
+    
+    # Afficher le graphique combiné
+    grid.newpage()
+    grid.draw(result)
+  }, error = function(e) {
+    cat("Erreur pour le segment_id", id, ":", conditionMessage(e), "\n")
+  })
+}
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(changepoint)
+library(zoo)
+
+analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL) {
+  # Filtrer les données pour le segment spécifié
+  segment_data <- data %>% filter(segment_id == !!segment_id)
+  
+  # Filtrer les données pour la période spécifiée
+  if (!is.null(start_date)) {
+    segment_data <- segment_data %>% filter(date >= !!start_date)
+  }
+  if (!is.null(end_date)) {
+    segment_data <- segment_data %>% filter(date <= !!end_date)
+  }
+  
+  segment_name <- unique(segment_data$segment_name)
+  
+  # Appliquer le lissage
+  smoothed_data <- rollmean(segment_data$vehicle, k = 7, fill = TRUE, align = "center")
+  
+  # Appliquer PELT sur les données lissées
+  model_mbic <- cpt.meanvar(smoothed_data, method = "PELT", penalty = "MBIC")
+  changepoints <- cpts(model_mbic)
+  
+  # Fonction pour fusionner les périodes courtes
+  merge_short_periods <- function(changepoints, data) {
+    periods <- diff(c(0, changepoints, nrow(data)))
+    merged <- c()
+    i <- 1
+    while (i <= length(periods)) {
+      if (periods[i] < 24 && i < length(periods)) { # Moins d'un jour (24 heures)
+        # Calculer les moyennes des périodes adjacentes
+        mean_current <- mean(data$vehicle[(sum(periods[1:(i-1)]) + 1):(sum(periods[1:i]))])
+        mean_next <- mean(data$vehicle[(sum(periods[1:i]) + 1):(sum(periods[1:(i+1)]))])
+        mean_prev <- if(i > 1) mean(data$vehicle[(sum(periods[1:(i-2)]) + 1):(sum(periods[1:(i-1)]))]) else Inf
+        
+        # Fusionner avec la période la plus proche en moyenne
+        if (abs(mean_current - mean_prev) <= abs(mean_current - mean_next) && i > 1) {
+          periods[i-1] <- periods[i-1] + periods[i]
+          periods <- periods[-(i)]
+        } else {
+          periods[i+1] <- periods[i] + periods[i+1]
+          periods <- periods[-(i)]
+        }
+      } else {
+        i <- i + 1
+      }
+    }
+    return(cumsum(periods)[-length(periods)])
+  }
+  
+  # Appliquer la fusion des périodes courtes
+  changepoints <- merge_short_periods(changepoints, segment_data)
+  
+  # Créer un dataframe pour la visualisation
+  df_plot <- segment_data %>%
+    mutate(changepoint = ifelse(row_number() %in% changepoints, "Yes", "No"))
+  
+  # Plot PELT
+  plot_pelt <- ggplot(df_plot, aes(x = 1:nrow(df_plot), y = vehicle, text = text)) +
+    geom_line() +
+    geom_vline(xintercept = changepoints, color = "red", linetype = "dashed", 
+               aes(text = paste("Changepoint Date:", date[changepoints]))) +
+    theme_minimal() +
+    labs(title = paste("PELT Changepoints for Segment", segment_name),
+         x = "Time", y = "Vehicle Count")
+  
+  # Convertir en plotly avec les tooltips
+  plot_pelt_interactive <- ggplotly(plot_pelt, tooltip = "text")
+
+  # Boxplots
+  segments <- split(df_plot, cumsum(df_plot$changepoint == "Yes"))
+  
+  boxplot_data <- map_dfr(seq_along(segments), ~{
+    segment <- segments[[.x]]
+    segment %>% mutate(period = .x)
+  })
+  
+  period_info <- boxplot_data %>%
+    group_by(period) %>%
+    summarise(
+      start_period = min(date),
+      end_period = max(date),
+      n_days = as.numeric(difftime(max(date), min(date), units = "days"))
+    )
+  
+  period_labels <- paste0(format(period_info$start_period, "%d-%m-%Y"), "\n", format(period_info$end_period,"%d-%m-%Y"))
+  
+  boxplot_data$period <- factor(boxplot_data$period, 
+                                levels = period_info$period,
+                                labels = period_labels)
+  
+  plot_boxplot <- ggplot(boxplot_data, aes(x = period, y = vehicle)) +
+    geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
+    theme_minimal() +
+    labs(title = paste("Traffic Periods for", segment_name),
+         x = "Period", y = "Vehicle Count") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+    scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 10))
+  
+  plot_boxplot_interactive <- ggplotly(plot_boxplot)
+  
+  # Combiner les graphiques
+  combined_plot <- subplot(plot_pelt_interactive, 
+                           plot_boxplot_interactive, nrows = 2)
+  
+  return(combined_plot)
+}
+
+# Utilisation de la fonction
+unique_segments <- unique(data_V2$segment_id)
+list_result <- list()
+
+for (id in unique_segments) {
+  tryCatch({
+    result <- suppressMessages(analyze_traffic(data_V2, id))
+    list_result[[as.character(id)]] <- result
+    
+    # Afficher le graphique combiné
+    print(result)
+  }, error = function(e) {
+    cat("Erreur pour le segment_id", id, ":", conditionMessage(e), "\n")
+  })
+}
+```
+

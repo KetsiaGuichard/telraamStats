@@ -22,19 +22,15 @@ A data frame with imputed values and imputation flags.
 This function creates and trains a Random Forest model for imputing missing traffic data.
 }
 \examples{
-data <- validate_and_preprocess_data(
-  data = traffic,
-  transport_type = "car",
-  sensors_id = 9000001844,
-  base_vars = c("day_of_month", "hour", "weekday", "month", "year",
-                "vacation", "week_number", "segment_id", "date")
-)
+data <- validate_and_preprocess_data(data = traffic,
+                                     transport_type = "car",
+                                     sensors_id = 9000001844,
+                                     base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date") )
 
-data <- create_and_train_model(
-  data = data,
-  target = "car",
-  base_vars = c("day_of_month", "hour", "weekday", "month", "year",
-                "vacation", "week_number", "segment_id", "date"),
-  threshold_uptime = 0.5
-)
+data <- create_and_train_model(data = data,
+                            target = "car",
+                            base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date"),
+                            threshold_uptime = 0.5)
+
+
 }

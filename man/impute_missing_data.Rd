@@ -8,7 +8,8 @@ impute_missing_data(
   data,
   sensors_id = NULL,
   transport_type = "vehicle",
-  threshold_uptime = 0.5
+  threshold_uptime = 0.5,
+  add_vars = NULL
 )
 }
 \arguments{
@@ -19,6 +20,8 @@ impute_missing_data(
 \item{transport_type}{Character. Type of transport to impute. Options are "car", "vehicle", "heavy", or "all". Default is "vehicle".}
 
 \item{threshold_uptime}{Numeric. Threshold for uptime to determine missing values. Default is 0.5.}
+
+\item{add_vars}{Character vector. Base variables used for prediction. Default is c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id").}
 }
 \value{
 A data frame with imputed values for the specified transport type and a new column indicating whether the values were imputed or original.
@@ -39,8 +42,7 @@ The function uses the uptime column to determine which data points need imputati
 Time interval could be hourly or quarterly. The function will automatically detect the time interval based on the data and add a minute variable if its quarterly.
 }
 \examples{
-traffic_clean <- retrieve_missing_data(traffic)
- traffic_imputed <- impute_missing_data(traffic_clean,
+ traffic_imputed <- impute_missing_data(traffic,
    sensors_id = 9000001844,
    transport_type = "vehicle",
    threshold_uptime = 0.5)
