@@ -4257,3 +4257,302 @@ ggplot(daily_data, aes(x = day, y = total_bike, color = pluie, group=pluie)) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 ```
 
+
+
+# Détection des valeurs abérrantes
+
+Utilisation de l'algorithme d'Hampel au détriment du Zscore ou de l'IQR qui sont adapté pour des jeux de données présentant une distribution symétrique des données.
+
+L'algorithme de Hampel est une méthode robuste pour la détection des valeurs aberrantes basée sur la médiane et l'écart absolu médian (MAD) Mean Absolute Deviation.
+
+```{r}
+hampel_filter <- function(x, k = 3, window_size = 7) {
+  n <- length(x)
+  outliers <- rep(FALSE, n)
+  lower_bounds <- rep(NA, n)
+  upper_bounds <- rep(NA, n)
+  
+  for (i in seq(window_size, n - window_size)) {
+    window <- x[(i - window_size):(i + window_size)]
+    med <- median(window, na.rm = TRUE)
+    mad <- mad(window, center = med, constant = 1.4826, na.rm = TRUE)
+    
+    lower_bound <- med - k * mad
+    upper_bound <- med + k * mad
+    
+    lower_bounds[i] <- lower_bound
+    upper_bounds[i] <- upper_bound
+    
+    if (x[i] < lower_bound | x[i] > upper_bound) {
+      outliers[i] <- TRUE
+    }
+  }
+  
+  list(outliers = which(outliers), lower_bounds = lower_bounds, upper_bounds = upper_bounds)
+}
+
+# Exemple de données
+set.seed(123)
+data <- rnorm(100)
+data[c(10, 20, 30)] <- c(10, -10, 15)  # Ajout de valeurs aberrantes
+
+# Application de la fonction avec une fenêtre de taille 7
+result <- hampel_filter(data_01$bike, k = 3, window_size = 150)
+
+# Affichage des résultats
+print(result$outliers)
+print(data_01$bike[result$outliers])
+
+# Visualisation des données avec les bornes et les valeurs aberrantes
+plot(data_01$bike~data_01$day, type = "b", main = "Détection des valeurs aberrantes avec l'algorithme de Hampel (Fenêtre glissante)", pch = 19)
+points(result$lower_bounds, col = "blue", lty = 2)
+lines(result$upper_bounds, col = "blue", lty = 2)
+points(result$outliers, data_01$bike[result$outliers], col = "red", pch = 19)
+
+
+# même représentation mais avec ggplot
+ggplot(data_01[-c(1:149, (nrow(data_01)-149):nrow(data_01)),], aes(x = date, y = bike)) +
+  geom_point() +
+  geom_line(aes(y = result$upper_bounds[-which(is.na(result$upper_bounds))], group=1), color = "purple") +
+  geom_line(aes(y = result$lower_bounds[-which(is.na(result$lower_bounds))], group=1), color = "blue", linetype = "dashed") +
+  geom_point(data = data_01[result$outliers,], color = "red", size = 1) +
+  labs(title = "Détection des valeurs aberrantes avec l'algorithme de Hampel (Fenêtre glissante)",
+       x = "Jour",
+       y = "Nombre de vélos") +
+  theme_minimal()
+
+which(result$lower_bound>0) 
+result$upper_bound
+```
+
+```{r}
+# Utilisaons l'IQR avec la logique de fenêtre glissante:
+
+# Définir la fonction de détection des valeurs aberrantes avec IQR
+iqr_filter <- function(x, window_size = 7) {
+  n <- length(x)
+  outliers <- rep(FALSE, n)
+  lower_bounds <- rep(NA, n)
+  upper_bounds <- rep(NA, n)
+  
+  for (i in seq(window_size, n - window_size)) {
+    window <- x[(i - window_size):(i + window_size)]
+    Q1 <- quantile(window, 0.25, na.rm = TRUE)
+    Q3 <- quantile(window, 0.75, na.rm = TRUE)
+    IQR <- Q3 - Q1
+    
+    lower_bound <- Q1 - 1.5 * IQR
+    upper_bound <- Q3 + 1.5 * IQR
+    
+    lower_bounds[i] <- lower_bound
+    upper_bounds[i] <- upper_bound
+    
+    if (x[i] < lower_bound | x[i] > upper_bound) {
+      outliers[i] <- TRUE
+    }
+  }
+  
+  list(outliers = which(outliers), lower_bounds = lower_bounds, upper_bounds = upper_bounds)
+}
+
+# Application de la fonction IQR sur les résidus
+iqr_result <- iqr_filter(data_01$bike, window_size = 160)
+
+# Visualisation des résidus avec les bornes IQR et les valeurs aberrantes
+plot(data_01$bike, type = "b", main = "Résidus avec valeurs aberrantes détectées (IQR)", pch = 19)
+lines(iqr_result$lower_bounds, col = "blue", lty = 2)
+lines(iqr_result$upper_bounds, col = "blue", lty = 2)
+points(iqr_result$outliers, data_01$bike[iqr_result$outliers], col = "red", pch = 19)
+
+
+ggplot(data_01[-c(1:159, (nrow(data_01)-159):nrow(data_01)),], aes(x = date, y = bike)) +
+  geom_point() +
+  geom_line(aes(y = iqr_result$upper_bounds[-which(is.na(iqr_result$upper_bounds))], group=1), color = "purple") +
+  geom_line(aes(y = iqr_result$lower_bounds[-which(is.na(iqr_result$lower_bounds))], group=1), color = "blue", linetype = "dashed") +
+  geom_point(data = data_01[result$outliers,], color = "red", size = 1) +
+  labs(title = "Détection des valeurs aberrantes avec l'algorithme de Hampel (Fenêtre glissante)",
+       x = "Jour",
+       y = "Nombre de vélos") +
+  theme_minimal()
+```
+
+```{r}
+# boxplot pour visualiser les valeurs aberrantes de data_01$bike avec ggplot
+ggplot(data_01, aes(x = date, y = bike, group = day)) +
+  geom_boxplot() +
+  labs(title = "Boxplot des valeurs de vélos par jour",
+       x = "Jour",
+       y = "Nombre de vélos") +
+  theme_minimal()
+
+```
+
+
+# Détection par décomposition de séries temporelles puis isolation forest
+
+```{r}
+# Décomposition de la série temporelle
+library(forecast)
+
+data_01 = stop_sensor(data_01, uptime_choice = 0.5, remove_data = TRUE)
+
+bike_ts <- ts(data_01$bike, frequency = 24, start= as.POSIXct("2022-05-01 02:00:00"))
+
+decomp_bike = stl(bike_ts, s.window = "periodic")
+residuals = decomp_bike$time.series[,"remainder"]
+
+
+ks_test <- ks.test(residuals, "pnorm", mean = mean(residuals), sd = sd(residuals))
+ks_test
+
+
+# QQ plot
+qqnorm(residuals)
+qqline(residuals, col = "red")
+
+
+# Densité et courbe normale
+plot(density(residuals), main = "Densité estimée et courbe normale")
+curve(dnorm(x, mean = mean(residuals), sd = sd(residuals)), col = "red", add = TRUE)
+legend("topright", legend = c("Densité estimée", "Courbe normale"), col = c("black", "red"), lty = 1)
+
+
+# Fonction pour le test de symétrie de D'Agostino
+dagostino_test <- function(x) {
+  n <- length(x)
+  m2 <- mean((x - mean(x))^2)
+  m3 <- mean((x - mean(x))^3)
+  skewness <- m3 / (m2^(3/2))
+  return(skewness)
+}
+
+# Calculer le test
+dagostino_value <- dagostino_test(residuals)
+dagostino_value
+# On est loin de 0, ce qui nous informe de la non symétrie de la distribution
+
+
+
+# Détection des valeurs aberrantes avec l'algorithme de Hampel(utilisant l'IQR)
+hampel_result <- hampel_filter(residuals, window_size = 200)
+
+
+ggplot(data_01[-c(1:199, (nrow(data_01)-199):nrow(data_01)),], aes(x = date, y = bike)) +
+  geom_point() +
+  geom_line(aes(y = hampel_result$upper_bounds[-which(is.na(hampel_result$upper_bounds))], group=1), color = "purple") +
+  geom_line(aes(y = hampel_result$lower_bounds[-which(is.na(hampel_result$lower_bounds))], group=1), color = "blue", linetype = "dashed") +
+  geom_point(data = data_01[hampel_result$outliers,], color = "red", size = 0.5) +
+  labs(title = "Détection des valeurs aberrantes avec l'algorithme de Hampel (Fenêtre glissante)",
+       x = "Jour",
+       y = "Nombre de vélos") +
+  theme_minimal()
+
+
+plot(bike_ts, xlab = "t", ylab = "CAR & Heavy", main = "Car & Heavy mobility", col = "red")
+
+as.numeric(as.POSIXct("2022-05-01 02:00:00"))
+as.numeric(as.POSIXct("2024-05-02 01:00:00"))
+```
+
+```{r}
+data_01[hampel_result$outliers,]
+```
+
+
+
+-   Considérer les seuils par palier (0.1-0.5, 0.6-1, 1.1-1.5, 1.6-2) et évaluer la moyenne de vélos (à l'aide de barre, ce qui va représenter une sorte de distribution de moyenne de vélos pour chaque palier): quand il ne peut pas, puis modèrement, puis moyennement, puis fortement etc.
+
+-   Faire l'analyse sur un capteur en particulier (où il y a généralement beaucoup de circulation tant pour les vélos que pour les véhicules: Rue Fabien Burel)
+
+Faire une étude de la distribution des vélos et des véhicules par semaine et les superposer afin de voir s'il y a une corrélation de la distribution par semaine ou par mois, permet également de facilement dégager les tendances pendant les mois particuliers (de vacances etc)
+
+-   chercher s'il y a une station météo à l'opposé de la station météo actuelle pour voir s'il y a une corrélation entre les précipitations des 2 stations météo. Et là on pourra considérer ou pas s'il est pertinent de considérer les précipitations de la station météo actuelle pour l'analyse du trafic
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Comparaison des proportion par palier de précipitations entre les 2 stations météo
+
+```{r}
+summary(meteo_vitre)
+
+summary(meteo)
+
+# Comparons les precipitations des 2 stations météo en créant la variable "palier_precip" pour les 2 stations et en comparant les proportions
+
+meteo_vitre = meteo_vitre %>% filter(!is.na(RR1)) %>%  mutate(palier_precip = ifelse(RR1 == 0, "0", ifelse(RR1 > 0 & RR1 <= 0.5, "0-0.5", ifelse(RR1 > 0.5 & RR1 <= 1, "0.5-1", ifelse(RR1 > 1 & RR1 <= 1.5, "1-1.5", ifelse(RR1 > 1.5 & RR1 <= 2, "1.5-2", ifelse(RR1 > 2 & RR1 <= 2.5, "2-2.5","2+")))))))
+
+
+prop_precip = meteo %>% group_by(palier_precip) %>% summarise(prop = n()/nrow(meteo), prop_velo = sum(bike, na.rm = TRUE)/sum(meteo$bike), prop_vehicule = sum(vehicule, na.rm = TRUE)/sum(meteo$vehicule)) %>% mutate(prop = paste0(round(prop*100, 1), "%"), prop_velo = paste0(round(prop_velo*100, 1), "%"), prop_vehicule = paste0(round(prop_vehicule*100, 1), "%"))
+
+prop_precip_vitre = meteo_vitre %>% group_by(palier_precip) %>% summarise(prop = n()/nrow(meteo_vitre)) %>% mutate(prop = paste0(round(prop*100, 1), "%"))
+
+prop_precip_vitre
+prop_precip_meteo
+```
+
+
+
+Elles sont quasiment identique à 0.1% près
+
+```{r}
+ggplot(V2_imputed_meteo_burel) + aes(date, bike, color=as.factor(week_number)) +
+  geom_line() +
+  scale_x_datetime(date_labels = "%a", date_breaks = "1 day")
+
+fig = V2_imputed_meteo_burel %>% filter(day>=as.Date('2024-01-01') & day<'2024-02-28') %>% 
+  mutate(Semaine = as_factor(week(date)), 
+         Jour = as_factor(weekdays(date)), 
+         Heure = hour(date)) %>% 
+  arrange(date) 
+
+ggplot(fig) + aes(date, bike, color=(Semaine), group = interaction(weekday, Semaine)) +
+  geom_line() +
+  scale_x_datetime(date_labels = "%A", date_breaks = "1 day") +
+  xlab('Période de la semaine')+ylab('Consommation Électrique (MW)')+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+# Créons un graphique qu va superposer la deistribution des vélos par numéro de semaine afin de ressortir la saisonnalité
+
+```
+
+```{r}
+V2_imputed_meteo_burel %>% filter(year(day) == "2023" ) %>% group_by(month, day) %>% summarise(mean = mean(bike, na.rm = TRUE)) %>% ggplot(aes(x = day, y = mean, group=1)) + geom_line() + labs(title = "Moyenne de vélos par jour", x = "Jour", y = "Moyenne de vélos") + theme_minimal() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + geom_hline(yintercept = mean(V2_imputed_meteo_burel$bike, na.rm = TRUE), linetype = "dashed", color = "red") + facet_grid(~month)
+```
+

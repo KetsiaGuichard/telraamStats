@@ -416,12 +416,12 @@ analyser_impact_pluie <- function(data, seuils = seq(0.1, 6, by = 0.5),
     bar_velo <- creer_barre_significativite(resultats_velo, "Différence")
     bar_vehicule <- creer_barre_significativite(resultats_vehicule, "Différence")
     graphique_combine <- gridExtra::grid.arrange(
-      p_velo, p_vehicule, bar_velo, bar_vehicule,
-      ncol = 2, heights = c(3, 1, 3, 1))
+      p_velo, bar_velo, p_vehicule, bar_vehicule,
+      nrow = 4, heights = c(3, 1, 3, 1))
   } else {
     graphique_combine <- gridExtra::grid.arrange(
       p_velo, p_vehicule,
-      ncol = 2
+      nrow = 2
     )
   }
   return(graphique_combine)

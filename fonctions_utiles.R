@@ -72,18 +72,17 @@ creer_graphique <- function(data, type_vehicule, approche="moyenne") {
 #' @return Un objet ggplot
 creer_barre_significativite <- function(data, title) {
   data <- data %>%
-    mutate(significant = ifelse(p_value < 0.05, "Significatif", "Non significatif"))
+    mutate(significant = ifelse(p_value < 0.05, "Signif", "Non signif"))
 
-  ggplot(data, aes(x = seuil, y = 1, fill = significant)) +
+  ggplot(data, aes(x = seuil , y = 1, fill = significant)) +
     geom_tile() +
-    scale_fill_manual(values = c("Significatif" = "red", "Non significatif" = "blue")) +
+    scale_fill_manual(values = c("Signif" = "red", "Non signif" = "blue")) +
     theme_minimal() +
     theme(
-      axis.title.y = element_blank(),
       axis.text.y = element_blank(),
       axis.ticks.y = element_blank(),
-      axis.text.x = element_blank(),
-      axis.ticks.x = element_blank()
+    #  axis.text.x = element_blank(),
+     # axis.ticks.x = element_blank()
     ) +
-    labs(x = "Seuil de pluie (mm)", fill = title)
+    labs(x = "Seuil de pluie (mm)", fill = title, y="   ")
 }

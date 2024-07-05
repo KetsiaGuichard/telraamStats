@@ -1,19 +1,26 @@
 ---
 title: "Analyse pour présentation 3"
-output: html_document
+author: "Kevin"
 date: "`r Sys.Date()`"
+output:
+  rmdformats::downcute:
+    logo: logo.jpg
+    favicon: logo.jpg
+    downcute_theme: chaos
+    highlight: tango
+    number_sections: yes
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(comment = "", prompt = TRUE)
 ```
-
 
 ```{r, message=FALSE,include=FALSE, warning=FALSE, "1"}
 source("fonction_meteo.R")
 source("imputed_data.R")
+source("import_data.R")
 source("fonction_filtre_data.R")
-#load("data/V2_meteo.RData")
 capteurs_V2 = read.csv("data/20230518_20240517_v2_sensors_extract.csv", sep=",", header=TRUE)
 library(dplyr)
 library(yaml)
@@ -21,42 +28,17 @@ library(ranger)
 library(lubridate)
 ```
 
-
 # Analyse avec les données imputées
 
-## Analyse du comportement du trafic en fonction de la météo, Approche de la moyenne
+De l'analyse précédente, nous nous sommes rendu compte qu'en faisant varier notre seuil de précipitation jusqu'à un certain seuil plus ou moins élevé (\>5), nous avions très peu de données y correspondant et de ce fait les resultats de nos tests statistiques semblent peu fiables. Nous avons donc décidé de réduire notre seuil de précipitation à 2.5mm afin que les données soient suffisantes pour les tests de comparaison, Et aussi le fait de faire de petites variations de seuil permet de capter les petites variations de comportement du trafic en fonction de la météo.
 
-Pour commencer, nous allons imputer les données des capteurs V2.
+## Analyse du comportement du trafic en fonction de la météo, Approche de la moyenne par heure
 
+
+Pour commencer, nous allons imputer les données des capteurs V2. Mais au préalable nous transformerons les données du quart heures en données horaires.
 
 
 ```{r, include=FALSE}
-
-# Import des données des capteurs V2
-capteurs_V2 = read.csv("data/20230518_20240517_v2_sensors_extract.csv", sep=",", header=TRUE)
-
-# Ajout des colonnes vehicle, season et segment_name nécessaire pour lancer la fonction impute_missing_data
-#capteurs_V2 = capteurs_V2 %>% mutate(vehicle = car + heavy , vehicle = ifelse(uptime>=0.5, vehicle, NA),
- #                                    season = ifelse(month(date) %in% c(3,4,5), "printemps", ifelse(month(date) %in% c(6,7,8),   #                                                    "été", ifelse(month(date) %in% c(9,10,11), "automne", "hiver"))),
-   #                                  segment_name = strsplit(segment_fullname, " - ") %>% sapply(function(x) x[1])
-    #                                 )
-
-
-# Imputation des données des capteurs V2 avec les donnnées toutes les 15 minutes
-capteurs_V2_imputed = impute_missing_data(capteurs_V2, transport_type = "vehicle")
-
-# Vérification
-table(capteurs_V2_imputed$imputed)
-
-capteurs_V2_imputed %>% arrange(date) %>%  filter(imputed == "imputed")
-rm(capteurs_V2)
-
-# En imputant sur les données brutes des V2, on se rend compte que lorsqu'on a des NA sur une même heure (les données étant pris chaque 15 minutes), elles sont toutes imputées par la même valeur
-```
-
-
-
-```{r}
 # Utilisation des données après transformation en hourly
 
 # Conversion des données des capteurs V2 en données horaires, imputation et fusion avec les données météo
@@ -66,10 +48,10 @@ capteurs_V2_h %>% filter(uptime < 0.5) %>% head()
 ```
 
 
-**Remarque**: On se rend compte que'on passe de 87 lignes avec un uptime < 0.5 à 724 lignes avec un uptime < 0.5 après la transformation en données horaires. Cela est dû au fait que sur les données au quart heures, on retrouve parmi eux des l'abscence de certains quart heures. Par exemple sur le capteur de **Prieuré** le **09-09-2023** à **9h**, on n'a les données uniquement de 9h et pas pour le reste de quart d'heure. En soi, cela signifie que pour cette heure là le capteur n'a fonctionné que d'au plus 15 minutes
 
+**Remarque**: On se rend compte que'on passe de 87 lignes avec un uptime \< 0.5 à 724 lignes avec un uptime \< 0.5 après la transformation en données horaires. Cela est dû au fait que sur les données au quart heure, on retrouve parmi eux l'abscence de certains quart heures. Par exemple sur le capteur de **Prieuré** le **09-09-2023** à **9h**, on a les données uniquement de 9h et pas pour le reste de quart d'heure. En soi, cela signifie que pour cette heure là le capteur n'a fonctionné que d'au plus 15 minutes
 
-```{r}
+```{r, include=FALSE}
 
 # Imputation
 capteurs_V2_imputed = impute_missing_data(capteurs_V2_h, transport_type = "vehicle")
@@ -83,94 +65,343 @@ table(capteurs_V2_imputed$imputed)
 
 V2_imputed_meteo = new_data(meteo, capteurs_V2_imputed)
 
-visu_na(V2_imputed_meteo)
+#visu_na(V2_imputed_meteo)
 
 V2_imputed_meteo <- V2_imputed_meteo %>%
   filter(!is.na(RR1))
 
 ```
 
+------------------------------------------------------------------------
 
+**Passons à l'analyse**
 
-
-
-```{r}
+```{r, echo=FALSE}
 # Passons à l'analyse du comportement du trafic en fonction de la météo
 
 # On commence par la moyenne
-analyser_impact_pluie(V2_imputed_meteo)
-
+result = analyser_impact_pluie(V2_imputed_meteo, seuils = seq(0.1, 2.6, 0.1))
+rm(result)
 ```
+
+Nos resultats restent presquent les mêmes, de façon générale on a les tendances similaires que la première analyse mais plus détaillées. La différence au niveau de moyenne de vélos est très faible, mais plus marquée chez les véhicules cependant la significativité est marquée sur les vélos et non sur les véhicules.
+
+La moyenne de vélos et de véhicules aux heures non pluvieuses semble être stable car on a toujours une grande proportion d'heure sans pluie tandis que les moyennes aux heures pluvieuses sont plus variables. Cela peut s'expliquer par le fait que les heures pluvieuses sont moins fréquentes et donc les données sont moins nombreuses pour les heures pluvieuses.
 
 ## Comparaison de la moyenne des vélos puis des véhicules en fonction du seuil de pluie pendant les heures d'affluence le matin (7h et 8h) et en semaine
 
-```{r}
+```{r, include=FALSE}
 # Comparaison de la moyenne des vélos puis des véhicules en fonction du seuil de pluie pendant les heures d'affluence le matin (7h et 8h) et en semaine
-result = analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "matin", weekend = FALSE)
+result = analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "matin", weekend = FALSE, seuils = seq(0.1, 2.5, 0.1))
 rm(result)
 
 # filtre sur les heures d'affluence le matin (7h-8h) et en semaine
-V2_imputed_meteo %>% filter(hour %in% c(7,8), weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")) %>% filter(RR1>1.5)
+#V2_imputed_meteo %>% filter(hour %in% c(7,8), weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")) %>% #filter(RR1>1.5)
+```
+
+Erreur renvoyée:
+
+```         
+Avis dans analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "matin", weekend = FALSE) :
+  Pas assez de précipitations enregistrées sur cette période pour une analyse
 ```
 
 ## Comparaison le SOIR (17h et 18h) et en semaine.
 
-```{r}
-result = analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "soir", weekend = FALSE)
+```{r, echo=FALSE}
+result = analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "soir", weekend = FALSE, seuils = seq(0.1, 2.5, 0.1))
 rm(result)
 ```
 
+Nos resultats restent quasiment inchangés. Toutefois, en ce qui concerne la significativité des différences, on ne peut pas totalement s'y fier car chaque fois ce résultat dépend de la quantité de données pour chaque seuil de pluie et la période de l'analyse en question.
 
 ## Comparaison en week-end
 
-```{r}
-result = analyser_impact_pluie(V2_imputed_meteo, weekend = TRUE)
+```{r, echo=FALSE}
+result = analyser_impact_pluie(V2_imputed_meteo, weekend = TRUE, seuils = seq(0.1, 2.5, 0.1))
 rm(result)
 ```
 
+On observe une petite différence dans le comportement des 2 types de mobilité, ce qui peut être expliqué par le fait que les valeurs imputées par notre algorithme sont significativement différentes pour les weekends, du moins assez pour produire un changement au niveau de nos résultats.
 
 ## Comparaison le SOIR (17h et 18h), en semaine et pendant la période scolaire
 
-```{r}
-result = analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "soir", weekend = FALSE, vacances = FALSE)
+```{r, echo=FALSE}
+result = analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "soir", weekend = FALSE, vacances = FALSE, seuils = seq(0.1, 2.5, 0.1))
 rm(result)
 ```
-
 
 # Analyse du comportement du trafic en fonction de la météo, Approche des proportions
 
 ## Comparaison des proportions de vélos puis de véhicules en fonction du seuil
 
-```{r}
+```{r, echo=FALSE}
 # Comparaison des proportions de vélos puis de véhicules en fonction du seuil
-result = analyser_impact_pluie(V2_imputed_meteo, approche = "proportion")
+result = analyser_impact_pluie(V2_imputed_meteo, approche = "proportion", seuils = seq(0.1, 2.5, 0.1))
 rm(result)
 ```
-
 
 ## Comparaison de la proportion pendant les heures d'affluence le matin (7h et 8h) et en semaine
 
-```{r}
+```{r, include=FALSE}
 # Comparaison de la proportion pendant les heures d'affluence le matin (7h et 8h) et en semaine
-result = analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "matin", weekend = FALSE, approche = "proportion")
+result = analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "matin", weekend = FALSE, approche = "proportion", seuils = seq(0.1, 2.5, 0.1))
 rm(result)
 ```
 
+Erreur renvoyée:
+
+```         
+Avis dans analyser_impact_pluie(V2_imputed_meteo, heure_pointe = "matin", weekend = FALSE) :
+  Pas assez de précipitations enregistrées sur cette période pour une analyse
+```
 
 ## Comparaison de la proportion en week end.
 
-```{r}
+```{r, echo=FALSE}
 # Comparaison de la proportion en week end
-result = analyser_impact_pluie(V2_imputed_meteo, weekend = TRUE, approche = "proportion")
+result = analyser_impact_pluie(V2_imputed_meteo, weekend = TRUE, approche = "proportion", seuils = seq(0.1, 2.5, 0.1))
 rm(result)
 ```
 
 
+# Autre vision
+
+Faire varier le seuil de précipitaion comme précédemment présente une certaine limite dans l'analyse car, pour un seuil fixé par exemple 2.5, le fait de considérer les heures pluvieuses et non pluvieuses peut être biaisé dans ce sens ou en dessous de 2.5 (qu'on considérait comme heure non pluvieuse) nous avions des pluies enregistrées et de ce fait une surestimation était fait du coté de période non pluvieuse.
+
+Nous avons donc décidé de considérer les seuils de précipitations par palier pour voir si on peut observer une tendance particulière ou alors moins importante que celle observée durant les analyses précédentes.
+
+Nous considèrerons dès lors les paliers suivants:
+
+**0, 0-0.5, 0.5-1, 1-1.5, 1.5-2, 2-2.5, 2+** et pas plus afin d'avoir une certaine quantité d'information pour chaque palier. On pourra observer sur le tableau la pourcentage d'observation de chaque palier de précipitations, le pourcentage de vélos et de véhicules pour chaque palier de précipitations.
+
+```{r, echo=FALSE}
+# Créons une nouvelle colonne "palier_precip" qui va contenir les paliers de précipitations
+#V2_imputed_meteo = V2_imputed_meteo %>% select(-palier_precip)
+V2_imputed_meteo  = V2_imputed_meteo %>% mutate(palier_precip = cut(RR1, breaks = c(-0.5,0, 0.5, 1, 1.5, 2, 2.5, max(RR1)), labels = c("0" ,"0-0.5", "0.5-1", "1-1.5", "1.5-2", "2-2.5","2.5+")), .after = instance_id)
+
+
+meteo = meteo %>% filter(!is.na(RR1)) %>%  mutate(palier_precip = ifelse(RR1 == 0, "0", ifelse(RR1 > 0 & RR1 <= 0.5, "0-0.5", ifelse(RR1 > 0.5 & RR1 <= 1, "0.5-1", ifelse(RR1 > 1 & RR1 <= 1.5, "1-1.5", ifelse(RR1 > 1.5 & RR1 <= 2, "1.5-2", ifelse(RR1 > 2 & RR1 <= 2.5, "2-2.5","2.5+")))))))
+
+# Calcul de la proportion de chaque palier de précipitations de météo
+prop_precip_meteo = meteo %>% group_by(palier_precip) %>% summarise(prop_palier = n()/nrow(meteo)) %>% mutate(prop = paste0(round(prop_palier*100, 1), "%"))
+
+# Calcul de la proportion de chaque palier de précipitations
+prop_precip = V2_imputed_meteo %>% group_by(palier_precip) %>% summarise(prop = n()/nrow(V2_imputed_meteo), prop_velo = sum(bike, na.rm = TRUE)/sum(V2_imputed_meteo$bike), prop_vehicule = sum(vehicule, na.rm = TRUE)/sum(V2_imputed_meteo$vehicule)) %>% mutate(prop = paste0(round(prop*100, 1), "%"), prop_velo = paste0(round(prop_velo*100, 1), "%"), prop_vehicule = paste0(round(prop_vehicule*100, 1), "%"))
+
+# Histogramme des moyennes de vélos et de véhicules en fonction des paliers de précipitations sur 2 graphiques
+V2_imputed_meteo %>% group_by(palier_precip) %>% summarise(mean = mean(vehicle, na.rm = TRUE)) %>% ggplot(aes(x = palier_precip, y = mean)) + geom_bar(stat = "identity", fill="blue") + labs(title = "Moyenne de véhicules en fonction des paliers de précipitations", x = "Palier de précipitations", y = "Moyenne de véhicules") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + geom_text(aes(label = round(mean)), vjust = -0.5, size = 3) + geom_hline(yintercept = mean(V2_imputed_meteo$vehicle, na.rm = TRUE), linetype = "dashed", color = "red")
+
+
+V2_imputed_meteo %>% group_by(palier_precip) %>% summarise(mean = mean(bike, na.rm = TRUE)) %>% ggplot(aes(x = palier_precip, y = mean)) + geom_bar(stat = "identity", fill = "green") + labs(title = "Moyenne de vélos en fonction des paliers de précipitations", x = "Palier de précipitations", y = "Moyenne de vélos") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + geom_text(aes(label = round(mean)), vjust = -0.5, size = 3) + geom_hline(yintercept = mean(V2_imputed_meteo$bike, na.rm = TRUE), linetype = "dashed", color = "red")
+
+
+prop_precip
+```
+
+**[Commentaire 1]: *Les véhicules****.*
+
+On remarque:
+
++ Une première **tendance à la hausse** de la moyenne de véhicule par heure pour de très **faible précipitation** (0-0.5mm)
+
++ Puis une certaine **tendance à la baisse** de la moyenne de véhicule par heure pour de **moyenne précipitation** mais après elle augmente significativement pour de plus grande quantité de précipitation. Nous ne devons pas dans notre analyse négliger la proportion de véhicule observée en temps pluvieux (8%).
+
+**[Commentaire 2]: *Les vélos****.*
+
+On observe un comportement quasi aléatoire de la moyenne de vélos par heure en fonction des paliers de précipitations. Cependant, il est à noter que pour des précipitations de plus en plus grande on se retrouve en dessous de la moyenne générale de vélos en circulation.
 
 
 
+# Analyse sur un capteur en particulier
+
+Ceci nous permettra de soustraire le biais lié au fait qu'une voiture ou un vélo puisse passer sur plusieurs capteurs et donc être compté plusieurs fois. Par exemple, nous avons les 2 capteurs situés sur la rue **Boulevard Leannec**.
+
+Nous avons décidé de prendre le capteur de **Fabien Burel** pour cette analyse car il est l'un des capteurs les plus fréquentés et a été installé depuis septembre.
 
 
+```{r, echo=FALSE}
+# Analyse sur le capteur de Burel
+V2_imputed_meteo_burel = V2_imputed_meteo %>% filter(segment_name == " Rue Fabien Burel")
+
+prop_precip = V2_imputed_meteo_burel %>% group_by(palier_precip) %>% summarise(prop = n()/nrow(V2_imputed_meteo_burel), prop_velo = sum(bike, na.rm = TRUE)/sum(V2_imputed_meteo_burel$bike), prop_vehicule = sum(vehicule, na.rm = TRUE)/sum(V2_imputed_meteo_burel$vehicule)) %>% mutate(prop = paste0(round(prop*100, 1), "%"), prop_velo = paste0(round(prop_velo*100, 1), "%"), prop_vehicule = paste0(round(prop_vehicule*100, 1), "%"))
+
+# Histogramme des moyennes de vélos et de véhicules en fonction des paliers de précipitations sur 2 graphiques
+V2_imputed_meteo_burel %>% group_by(palier_precip) %>% summarise(mean = mean(vehicle, na.rm = TRUE)) %>%
+        ggplot(aes(x = palier_precip, y = mean)) + geom_bar(stat = "identity", fill="blue") +
+        geom_point(aes(y = mean), color = "red", size = 2) +
+        geom_line(aes(y = mean), color = "red", group=1) +
+        labs(title = "Moyenne de véhicules par heure en fonction des paliers de précipitations",
+            x = "Palier de précipitations",
+            y = "Moyenne de véhicules") +
+        theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        geom_text(aes(label = round(mean)), vjust = -0.5, size = 3) +
+        geom_hline(yintercept = mean(V2_imputed_meteo_burel$vehicle, na.rm = TRUE), linetype = "dashed", color = "red")
+
+
+V2_imputed_meteo_burel %>% group_by(palier_precip) %>% summarise(mean = mean(bike, na.rm = TRUE)) %>%
+        ggplot(aes(x = palier_precip, y = mean)) +
+        geom_bar(stat = "identity", fill = "green") +
+        geom_point(aes(y = mean), color = "blue", size = 2) +
+        geom_line(aes(y = mean), color = "blue", group=1) +
+        labs(title = "Moyenne de vélos par heure en fonction des paliers de précipitations",
+             x = "Palier de précipitations", y = "Moyenne de vélos") +
+        theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        geom_text(aes(label = round(mean)), vjust = -0.5, size = 3) +
+        geom_hline(yintercept = mean(V2_imputed_meteo_burel$bike, na.rm = TRUE), linetype = "dashed", color = "red")
+
+
+prop_precip
+
+```
+
+
+Le comportement n'est pas quasiment identique. Pour les voitures, on observe un comportement opposé pour les faibles précipitations (0-0.5mm et 0.5-1mm).
+
+
+## Analyse sur les saisons
+
+```{r, echo=FALSE}
+# Ajout de la saison
+V2_imputed_meteo_burel = V2_imputed_meteo_burel %>% mutate(season = ifelse(month(date) %in% c(3,4,5), "printemps", ifelse(month(date) %in% c(6,7,8), "été", ifelse(month(date) %in% c(9,10,11), "automne", "hiver"))))
+
+# Histogramme des moyennes de vélos et de véhicules en fonction des paliers de précipitations sur 2 graphiques
+V2_imputed_meteo_burel %>% group_by(season,palier_precip) %>% summarise(mean = mean(vehicle, na.rm = TRUE), .groups = "keep") %>%
+        ggplot(aes(x = palier_precip, y = mean)) + geom_bar(stat = "identity", fill="blue") +
+        geom_point(aes(y = mean), color = "red", size = 2) +
+        geom_line(aes(y = mean), color = "red", group=1) +
+        labs(title = "Moyenne de véhicules par heure en fonction des paliers de précipitations",
+            x = "Palier de précipitations",
+            y = "Moyenne de véhicules") +
+        theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        facet_wrap(~season) +
+        geom_text(aes(label = round(mean)), vjust = -0.5, size = 3) +
+        geom_hline(yintercept = mean(V2_imputed_meteo_burel$vehicle, na.rm = TRUE), linetype = "dashed", color = "red")
+
+
+V2_imputed_meteo_burel %>% group_by(season, palier_precip) %>% summarise(mean = mean(bike, na.rm = TRUE), .groups = "keep") %>%
+        ggplot(aes(x = palier_precip, y = mean)) +
+        geom_bar(stat = "identity", fill = "green") +
+        geom_point(aes(y = mean), color = "blue", size = 2) +
+        geom_line(aes(y = mean), color = "blue", group=1, linejoin="round") +
+        labs(title = "Moyenne de vélos par heure en fonction des paliers de précipitations",
+             x = "Palier de précipitations", y = "Moyenne de vélos") +
+        theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        facet_wrap(~season) +
+        geom_text(aes(label = round(mean)), vjust = -0.5, size = 3) +
+        geom_hline(yintercept = mean(V2_imputed_meteo_burel$bike, na.rm = TRUE), linetype = "dashed", color = "red")
+
+```
+
+**Remarque 1:** En hivers, on a une forte diminution du traffic de vélos par rapport à la moyenne générale(pointillés rouge)
+
+Le constat général est qu'on observe le même schéma pour les vélos indépendamment des saisons
+
+En ce qui concerne les véhicules, le comportement diffère d'une saison à une autre. En hivers particulièrement, quand il pleut, on se retrouve en dessous de la moyenne générale de véhicules en circulation. Mais lorsqu'on atteint un seuil >2.5mm il y a une augmentation très significative.
+
+
+
+# Un regard sur la problématique des données météos utilisées
+
+L'un des problèmes qui se posait jusqu'à présent était celui de savoir si **l'utilisation des données météo de la station de Saint Jacques** était pertinente pour l'analyse du trafic dans la commune de Châteaubourg. Nous avons donc décidé de faire une comparaison des précipitations de la station de Rennes avec une autre station météo située à l'opposée de Rennes pour voir s'il y a une corrélation entre les précipitations des 2 stations météo. 
+
+
+## Nouvelle station météo: Vitré
+
+La commune de Vitré est située à l'opposée de Saint_Jacques de la Lande, où se trouve la station météo actuelle. Nous allons importer les données météorologiques de la station de Vitré pour voir s'il y a une corrélation entre les précipitations des 2 stations météo. Et là on pourra décider s'il est pertinent de considérer les précipitations de la station météo actuelle pour l'analyse du trafic.
+
+```{r, echo=FALSE}
+# Import des données météorologiques de la station de vitré, opposée à la station de Rennes
+load("data/meteo_vitre.RData")
+meteo_vitre = meteo_vitre %>% select(DATE, N, RR1, GLO, U, VV, T) %>%  filter(!is.na(RR1))
+corrplot(cor(meteo[-1,] %>% select(-palier_precip, -DATE, -N), meteo_vitre %>% mutate(RR1_vitré = RR1, GLO_vitré = GLO, T_vitré = T, U_vitré = U, VV_vitré = VV) %>%  select(RR1_vitré, GLO_vitré, U_vitré, VV_vitré, T_vitré) %>% filter(!is.na(RR1_vitré)), use = "complete.obs"), method = "number", type = "upper", tl.col = "black", tl.srt = 45)
+```
+
+Ce qui nous intéresse ici c'est uniquement les valeurs sur la diagonale: Il subsiste une forte corrélation entre les précipitations des 2 stations météo. Etant des valeurs précises, essayons de voir à quelle point elles se correspondes.
+
+```{r, echo=FALSE}
+# Faisons une simple analyse: pourcentage de valeurs identiques de précipitations entre les 2 stations météo sur une période de plus de 2 ans
+
+plot(meteo[-21097, "RR1"], meteo_vitre$RR1, col = ifelse(meteo[-21097, "RR1"] == meteo_vitre$RR1, "red", "blue"), xlab = "Précipitations Rennes", ylab = "Précipitations Vitré", pch=16)
+
+paste0(" Nous avons environ: ",
+       round(sum(meteo[-21097, "RR1"] == meteo_vitre$RR1)/nrow(meteo_vitre)*100,1), "% de valeurs identiques de précipitations entre les 2 stations météo sur une période de plus de 2 ans")
+
+
+```
+
+
+
+Ce resultat nous conforte dans l'idée que les précipitations de la station de Rennes peuvent être utilisées pour l'analyse du trafic dans la commune de Châteaubourg.
+
+```{r, echo=FALSE}
+paste0(" Nous avons environ: ",
+       round(sum(meteo[-21097, "T"] == meteo_vitre$T)/nrow(meteo_vitre)*100,1), "% de valeurs identiques de Température enregistrées entre les 2 stations météo sur une période de plus de 2 ans")
+
+paste0(" Nous avons environ: ",
+       round(sum(meteo[-21097, "GLO"] == meteo_vitre$GLO, na.rm = TRUE)/nrow(meteo_vitre)*100,1), "% de valeurs identiques de l'ensoleiement global horaire enregistrées entre les 2 stations météo sur une période de plus de 2 ans")
+```
+
+En conclusion, nous avons une corrélation très forte entre les relevés météorologiques des 2 stations météo et donc les précipitations de la station de Rennes peuvent être utilisées pour l'analyse du trafic dans la commune de Châteaubourg et potentiellement les autres variables aussi.
+
+
+
+# Etape suivante de l'analyse
+
+On sait desormais qu'il y a un lien entre les précipitations et la mobilité à Chateaubourg. Nous allons explorer un peu plus afin de savoir comment une journée pluvieuse peut impacter la mobilité le jour suivant. Pour cela, nous allons utiliser les données de la station météo de Rennes pour voir si les précipitations d'un jour peuvent impacter la mobilité le jour suivant.
+
+Un jour pluvieux sera considéré comme un jour où la quantité de précipitations est supérieure à 4mm. Ainsi, nous allons visualiser le comportement du total ou la moyenne de vélos et de véhicules le jour suivant un jour pluvieux et le comparer avec le jour pluvieux.
+
+Pour le moment on ne regarde pas si le jour suivant il a aussi plu ou non.
+
+```{r}
+# On commence par créer une nouvelle colonne "jour_pluie" qui va nous dire si le jour est pluvieux ou non
+V2_meteo_jour = V2_meteo %>% group_by(day) %>% summarise(RR1 = sum(RR1, na.rm = TRUE), bike = mean(bike, na.rm = TRUE), vehicule = mean(vehicule, na.rm = TRUE)) %>% mutate(jour_pluie = ifelse(RR1 > 4, "1", "0")) %>% arrange(day)
+
+V2_meteo_jour$day  = lubridate::ymd(V2_meteo_jour$day)
+
+# Créons 2 dataframes vides: un pour les jours non pluvieux et un pour les jours pluvieux suivants
+jour_suivant = data.frame(day = character(), bike = numeric(), vehicule = numeric())
+jour_pluie = data.frame(day = character(), bike = numeric(), vehicule = numeric())
+
+# Remplissons les dataframes
+for(i in 1:(nrow(V2_meteo_jour)-1)){
+  if(V2_meteo_jour$jour_pluie[i] == "1"){
+    jour_pluie = rbind(jour_pluie, V2_meteo_jour[i, ])
+    jour_suivant = rbind(jour_suivant, V2_meteo_jour[i+1,])
+  }
+}
+
+# Visualisons le comportement du total de vélos et de véhicules le jour suivant un jour pluvieux et le comparer avec le jour non pluvieux suivant
+ggplot(jour_pluie) + 
+    geom_line(aes(x=day, y=bike, group=1), color="red", linewidth=0.5) +
+    geom_smooth(aes(x=day, y=bike), colour="red", method="loess", formula = 'y~x') +
+    geom_line(data=jour_suivant, aes(x=day, y=bike, group=1), color="blue", linewidth=0.6) +
+    geom_smooth(data=jour_suivant, aes(x=day, y=bike), method="loess", colour="blue", formula = 'y~x') +
+    labs(title="Trafic de vélos les jours pluvieux (rouge) et les jours suivants (bleu)", 
+         x="Jour", 
+         y="Total de vélos") +
+    theme_minimal()
+
+```
+
+
+On se rend compte que la différence n'est pas très marquée entre les moyenne de vélos les jours pluvieux et les jours suivants. 
+
+Quand est il des véhicules?
+
+
+```{r}
+ggplot(jour_pluie) + 
+    geom_line(aes(x=day+1, y=vehicule, group=1), color="red", linewidth=0.5) +
+    geom_smooth(aes(x=day+1, y=vehicule), colour="red", method="loess", formula = 'y~x') +
+    geom_line(data=jour_suivant, aes(x=day, y=vehicule, group=1), color="blue", linewidth=0.6) +
+    geom_smooth(data=jour_suivant, aes(x=day, y=vehicule), method="loess", colour="blue", formula = 'y~x') +
+    labs(title="Trafic de véhicules les jours pluvieux (rouge) et les jours suivants (bleu)", 
+         x="Jour", 
+         y="Total de vélos") +
+    theme_minimal()
+```
 
 
 
