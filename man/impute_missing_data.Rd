@@ -42,10 +42,11 @@ The function uses the uptime column to determine which data points need imputati
 Time interval could be hourly or quarterly. The function will automatically detect the time interval based on the data and add a minute variable if its quarterly.
 }
 \examples{
+\dontrun{
  traffic_imputed <- impute_missing_data(traffic,
    sensors_id = 9000001844,
    transport_type = "vehicle",
    threshold_uptime = 0.5)
  table(traffic_imputed$imputed)
-
+}
 }

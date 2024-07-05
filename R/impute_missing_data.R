@@ -12,6 +12,8 @@
 #' @importFrom lubridate day hour month year week wday minute
 #' @importFrom dplyr mutate %>%
 #'
+#' @keywords internal
+#' @export
 #' @examples
 #' data <- validate_and_preprocess_data(data = traffic,
 #'                                      transport_type = "car",
@@ -133,6 +135,8 @@ validate_and_preprocess_data <-
 #' @importFrom stats complete.cases na.omit predict
 #' @importFrom ranger ranger
 #'
+#' @keywords internal
+#' @export
 #'
 #' @examples
 #' data <- validate_and_preprocess_data(data = traffic,
@@ -227,13 +231,14 @@ create_and_train_model <-
 #'
 #'Time interval could be hourly or quarterly. The function will automatically detect the time interval based on the data and add a minute variable if its quarterly.
 #'
-#' @examples
+#' @export
+#' @examples \dontrun{
 #'  traffic_imputed <- impute_missing_data(traffic,
 #'    sensors_id = 9000001844,
 #'    transport_type = "vehicle",
 #'    threshold_uptime = 0.5)
 #'  table(traffic_imputed$imputed)
-#'
+#'}
 
 impute_missing_data <-
   function(data,

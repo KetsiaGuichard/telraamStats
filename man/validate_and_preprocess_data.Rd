@@ -28,3 +28,4 @@ data <- validate_and_preprocess_data(data = traffic,
                                      base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date"))
 
 }
+\keyword{internal}
