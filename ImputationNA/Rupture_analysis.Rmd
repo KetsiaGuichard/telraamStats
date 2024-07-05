@@ -1,10 +1,13 @@
 ```{r}
+source("/Users/paulvallee/Desktop/Stage CREM/Code R/Telraam Ketsia Version/R/preprocessing.R")
+source("/Users/paulvallee/Desktop/Stage CREM/Code R/Telraam Ketsia Version/ImputationNA/Utilities_functions.R")
 dataV2 <- read.csv("/Users/paulvallee/Desktop/Stage CREM/Code R/data/20230518_20240517_v2_sensors_extract.csv")
 dataV2$uptime_quality <- ifelse(dataV2$uptime >=0.5 ,TRUE,FALSE)
-dataV2 <- stop_sensor(dataV2)
+dataV2 <- retrieve_missing_data(dataV2)
 dataV2 <- quarterly_to_hourly(dataV2)
 #dataV2 <- dataV2 %>% rename(segment_name = segment_fullname) %>%  filter(segment_name != "") %>%  mutate(segment_name = as.factor(as.character(gsub("[0-9-]+", "",segment_name))),uptime = as.numeric(uptime))
 dataV2
+dataV2 <- impute_missing_data(dataV2)
 
 
 
@@ -691,6 +694,8 @@ library(ggplot2)
 library(changepoint)
 library(gridExtra)
 library(zoo)
+#grid.newpage"
+library(stringr)
 
 analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL) {
   # Filtrer les données pour le segment spécifié
@@ -777,7 +782,7 @@ analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL
                                 levels = period_info$period,
                                 labels = period_labels)
   
-  plot_boxplot <- ggplot(boxplot_data, aes(x = period, y = vehicle)) +
+  plot_boxplot <- ggplot(boxplot_data, aes(x = period, y = transport)) +
     geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
     theme_minimal() +
     labs(title = paste("Traffic Periods for", segment_name),
@@ -796,12 +801,12 @@ analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL
 }
 
 # Utilisation de la fonction
-unique_segments <- unique(data_V2$segment_id)
+unique_segments <- unique(dataV2$segment_id)
 list_result <- list()
 
 for (id in unique_segments) {
   tryCatch({
-    result <- suppressMessages(analyze_traffic(data_V2, id))
+    result <- suppressMessages(analyze_traffic(dataV2, id))
     list_result[[as.character(id)]] <- result
     
     # Afficher le graphique combiné
@@ -949,7 +954,7 @@ library(plotly)
 library(changepoint)
 library(zoo)
 
-analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL) {
+analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL,type = "car") {
   # Filtrer les données pour le segment spécifié
   segment_data <- data %>% filter(segment_id == !!segment_id)
   
@@ -961,10 +966,19 @@ analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL
     segment_data <- segment_data %>% filter(date <= !!end_date)
   }
   
+  #Vérifier si le type de vehicule est valide
+  if (!(type %in% colnames(segment_data))) {
+    stop("Transport type does not exist in the data")
+  }
+  
+  # Enregistrer le type de transport comme colonne a analyser
+  segment_data <- segment_data %>% rename(transport = !!type)
+  
+  
   segment_name <- unique(segment_data$segment_name)
   
   # Appliquer le lissage
-  smoothed_data <- rollmean(segment_data$vehicle, k = 7, fill = TRUE, align = "center")
+  smoothed_data <- rollmean(segment_data$transport, k = 7, fill = TRUE, align = "center")
   
   # Appliquer PELT sur les données lissées
   model_mbic <- cpt.meanvar(smoothed_data, method = "PELT", penalty = "MBIC")
@@ -978,9 +992,9 @@ analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL
     while (i <= length(periods)) {
       if (periods[i] < 24 && i < length(periods)) { # Moins d'un jour (24 heures)
         # Calculer les moyennes des périodes adjacentes
-        mean_current <- mean(data$vehicle[(sum(periods[1:(i-1)]) + 1):(sum(periods[1:i]))])
-        mean_next <- mean(data$vehicle[(sum(periods[1:i]) + 1):(sum(periods[1:(i+1)]))])
-        mean_prev <- if(i > 1) mean(data$vehicle[(sum(periods[1:(i-2)]) + 1):(sum(periods[1:(i-1)]))]) else Inf
+        mean_current <- mean(data$transport[(sum(periods[1:(i-1)]) + 1):(sum(periods[1:i]))])
+        mean_next <- mean(data$transport[(sum(periods[1:i]) + 1):(sum(periods[1:(i+1)]))])
+        mean_prev <- if(i > 1) mean(data$transport[(sum(periods[1:(i-2)]) + 1):(sum(periods[1:(i-1)]))]) else Inf
         
         # Fusionner avec la période la plus proche en moyenne
         if (abs(mean_current - mean_prev) <= abs(mean_current - mean_next) && i > 1) {
@@ -1005,65 +1019,276 @@ analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL
     mutate(changepoint = ifelse(row_number() %in% changepoints, "Yes", "No"))
   
   # Plot PELT
-  plot_pelt <- ggplot(df_plot, aes(x = 1:nrow(df_plot), y = vehicle)) +
+  plot_pelt <- ggplot(df_plot, aes(x = 1:nrow(df_plot), y = bike)) +
     geom_line() +
     geom_vline(xintercept = changepoints, color = "red", linetype = "dashed") +
     theme_minimal() +
     labs(title = paste("PELT Changepoints for Segment", segment_name),
-         x = "Time", y = "Vehicle Count")
+         x = "Time", y = paste(type,"Count"))
   
   plot_pelt_interactive <- ggplotly(plot_pelt)
 
-  # Boxplots
+# Boxplots
   segments <- split(df_plot, cumsum(df_plot$changepoint == "Yes"))
   
+
+# Préparation des données pour les boxplots
+boxplot_data <- map_dfr(seq_along(segments), ~{
+  segment <- segments[[.x]]
+  segment %>% mutate(period = .x)
+})
+
+period_info <- boxplot_data %>%
+  group_by(period) %>%
+  summarise(
+    start_period = min(date),
+    end_period = max(date),
+    n_days = as.numeric(difftime(max(date), min(date), units = "days")),
+    total_transport = sum(transport)
+  )
+
+# Créer le boxplot directement avec plotly
+plot_boxplot_interactive <- plot_ly() %>%
+  add_boxplot(
+    data = boxplot_data,
+    x = ~factor(period),
+    y = ~transport,
+    boxpoints = "outliers",
+    jitter = 0.3,
+    pointpos = -1.8,
+    marker = list(color = "red", size = 2),
+    line = list(color = "blue"),
+    fillcolor = "lightblue",
+    name = "Boxplot"
+  ) %>%
+  add_trace(
+    type = "box",
+    x = ~factor(period),
+    y = ~vehicle,
+    hoveron = "boxes",
+    hoverinfo = "text",
+    text = ~paste(
+      "Start Period:", format(period_info$start_period[period], "%d-%m-%Y"),
+      "<br>End Period:", format(period_info$end_period[period], "%d-%m-%Y"),
+      "<br>Total", type ,"Count:", period_info$total_transport[period]
+    ),
+    marker = list(color = "transparent"),
+    line = list(color = "transparent"),
+    fillcolor = "transparent",
+    showlegend = FALSE
+  ) %>%
+  add_trace(
+    type = "scatter",
+    mode = "markers",
+    x = ~factor(period),
+    y = ~transport,
+    marker = list(color = "red", size = 2),
+    hoverinfo = "text",
+    text = ~format(date, "%d-%m-%Y %H:%M"),
+    showlegend = FALSE
+  ) %>%
+  layout(
+    title = paste("Traffic Periods for", segment_name),
+    xaxis = list(title = "Period"),
+    yaxis = list(title = paste(type,"Count")),
+    hovermode = "closest"
+  )
+
+# Combiner les graphiques
+combined_plot <- subplot(plot_pelt_interactive, 
+                         plot_boxplot_interactive, nrows = 2)
+
+return(combined_plot)
+}
+
+# Utilisation de la fonction
+unique_segments <- unique(dataV2$segment_id)
+list_result <- list()
+
+for (id in unique_segments) {
+  tryCatch({
+    result <- suppressMessages(analyze_traffic(dataV2, id))
+    list_result[[as.character(id)]] <- result
+    
+    # Afficher le graphique combiné
+    print(result)
+  }, error = function(e) {
+    cat("Erreur pour le segment_id", id, ":", conditionMessage(e), "\n")
+  })
+}
+```
+
+
+
+```{r}
+#Load data V1
+load("/Users/paulvallee/Desktop/Stage CREM/Code R/data/segments_2ans.RData")
+data_04$segment_name <- "RueDesEcoles-14"
+
+segments <- list(data_01,data_02,data_04,data_05,data_06,data_07,data_08,data_10,data_11,data_13,data_14,data_15,data_16,data_18)
+
+segments <- lapply(segments,retrieve_missing_data)
+
+segments <- lapply(segments,impute_missing_data)
+
+lapply(segments, function(data) {
+  analyze_traffic(data,segment_id = unique(data$segment_id))
+})
+
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(highcharter)
+library(changepoint)
+library(zoo)
+
+analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL,type = "car") {
+  # Filtrer les données pour le segment spécifié
+  segment_data <- data %>% filter(segment_id == !!segment_id)
+  
+  # Filtrer les données pour la période spécifiée
+  if (!is.null(start_date)) {
+    segment_data <- segment_data %>% filter(date >= !!start_date)
+  }
+  if (!is.null(end_date)) {
+    segment_data <- segment_data %>% filter(date <= !!end_date)
+  }
+  
+  #Vérifier si le type de vehicule est valide
+  if (!(type %in% colnames(segment_data))) {
+    stop("Transport type does not exist in the data")
+  }
+  
+  # Enregistrer le type de transport comme colonne a analyser
+  segment_data <- segment_data %>% rename(transport = !!type)
+  
+  
+# Vérifier que segment_name est unique et non une liste
+  segment_name <- unique(segment_data$segment_name)[1]
+  # Appliquer le lissage
+  smoothed_data <- rollmean(segment_data$transport, k = 7, fill = TRUE, align = "center")
+  
+  # Appliquer PELT sur les données lissées
+  model_mbic <- cpt.meanvar(smoothed_data, method = "PELT", penalty = "MBIC")
+  changepoints <- cpts(model_mbic)
+  
+  # Fonction pour fusionner les périodes courtes
+  merge_short_periods <- function(changepoints, data) {
+    periods <- diff(c(0, changepoints, nrow(data)))
+    merged <- c()
+    i <- 1
+    while (i <= length(periods)) {
+      if (periods[i] < 24 && i < length(periods)) { # Moins d'un jour (24 heures)
+        # Calculer les moyennes des périodes adjacentes
+        mean_current <- mean(data$transport[(sum(periods[1:(i-1)]) + 1):(sum(periods[1:i]))])
+        mean_next <- mean(data$transport[(sum(periods[1:i]) + 1):(sum(periods[1:(i+1)]))])
+        mean_prev <- if(i > 1) mean(data$transport[(sum(periods[1:(i-2)]) + 1):(sum(periods[1:(i-1)]))]) else Inf
+        
+        # Fusionner avec la période la plus proche en moyenne
+        if (abs(mean_current - mean_prev) <= abs(mean_current - mean_next) && i > 1) {
+          periods[i-1] <- periods[i-1] + periods[i]
+          periods <- periods[-(i)]
+        } else {
+          periods[i+1] <- periods[i] + periods[i+1]
+          periods <- periods[-(i)]
+        }
+      } else {
+        i <- i + 1
+      }
+    }
+    return(cumsum(periods)[-length(periods)])
+  }
+  
+  # Appliquer la fusion des périodes courtes
+  changepoints <- merge_short_periods(changepoints, segment_data)
+  
+  # Créer un dataframe pour la visualisation
+  df_plot <- segment_data %>%
+    mutate(changepoint = ifelse(row_number() %in% changepoints, "Yes", "No"))
+
+  # Plot PELT
+  plot_pelt <- highchart() %>%
+    hc_chart(type = "line") %>%
+    hc_title(text = paste("PELT Changepoints for Segment", segment_name)) %>%
+    hc_xAxis(title = list(text = "Time")) %>%
+    hc_yAxis(title = list(text = paste(type, "Count"))) %>%
+    hc_add_series(data = df_plot$transport, name = type) %>%
+    hc_add_series(data = changepoints, type = "line", lineWidth = 0, marker = list(enabled = TRUE),
+                  name = "Changepoints", color = "red")
+
+  # Préparation des données pour les boxplots
   boxplot_data <- map_dfr(seq_along(segments), ~{
     segment <- segments[[.x]]
     segment %>% mutate(period = .x)
   })
-  
+
   period_info <- boxplot_data %>%
     group_by(period) %>%
     summarise(
       start_period = min(date),
       end_period = max(date),
-      n_days = as.numeric(difftime(max(date), min(date), units = "days"))
+      n_days = as.numeric(difftime(max(date), min(date), units = "days")),
+      total_transport = sum(transport)
     )
-  
-  period_labels <- paste0(format(period_info$start_period, "%d-%m-%Y"), "\n", format(period_info$end_period,"%d-%m-%Y"))
-  
-  boxplot_data$period <- factor(boxplot_data$period, 
-                                levels = period_info$period,
-                                labels = period_labels)
-  
-  plot_boxplot <- ggplot(boxplot_data, aes(x = period, y = vehicle)) +
-    geom_boxplot(fill = "lightblue", outlier.colour = "red", outlier.shape = 1) +
-    theme_minimal() +
-    labs(title = paste("Traffic Periods for", segment_name),
-         x = "Period", y = "Vehicle Count") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
-    scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 10))
-  
-  plot_boxplot_interactive <- ggplotly(plot_boxplot)
-  
-  # Combiner les graphiques
-  combined_plot <- subplot(plot_pelt_interactive, 
-                           plot_boxplot_interactive, nrows = 2)
-  
-  return(combined_plot)
+
+  # Créer le boxplot avec highcharter
+  plot_boxplot <- highchart() %>%
+    hc_chart(type = "boxplot") %>%
+    hc_title(text = paste("Traffic Periods for", segment_name)) %>%
+    hc_xAxis(title = list(text = "Period")) %>%
+    hc_yAxis(title = list(text = paste(type, "Count"))) %>%
+    hc_add_series(
+      data = map(unique(boxplot_data$period), function(p) {
+        x <- boxplot_data$transport[boxplot_data$period == p]
+        c(min(x), quantile(x, 0.25), median(x), quantile(x, 0.75), max(x))
+      }),
+      name = "Boxplot",
+      tooltip = list(
+        headerFormat = "",
+        pointFormat = paste(
+          "<b>Period {point.x}</b><br/>",
+          "Start: {point.start_period}<br/>",
+          "End: {point.end_period}<br/>",
+          "Total", type, "Count: {point.total_transport}"
+        )
+      )
+    )
+
+  # Ajouter les informations de période au tooltip
+  plot_boxplot <- plot_boxplot %>%
+    hc_tooltip(
+      formatter = JS(sprintf(
+        "function() {
+          var period = this.point.x;
+          var info = %s[period - 1];
+          return '<b>Period ' + period + '</b><br/>' +
+                 'Start: ' + info.start_period + '<br/>' +
+                 'End: ' + info.end_period + '<br/>' +
+                 'Total %s Count: ' + info.total_transport;
+        }",
+        jsonlite::toJSON(period_info),
+        type
+      ))
+    )
+
+  # Retourner les deux graphiques dans une liste
+  return(list(pelt = plot_pelt, boxplot = plot_boxplot))
 }
 
 # Utilisation de la fonction
-unique_segments <- unique(data_V2$segment_id)
+unique_segments <- unique(dataV2$segment_id)
 list_result <- list()
 
 for (id in unique_segments) {
   tryCatch({
-    result <- suppressMessages(analyze_traffic(data_V2, id))
+    result <- suppressMessages(analyze_traffic(dataV2, id))
     list_result[[as.character(id)]] <- result
     
-    # Afficher le graphique combiné
-    print(result)
+    # Afficher les graphiques
+    print(result$pelt)
+    print(result$boxplot)
   }, error = function(e) {
     cat("Erreur pour le segment_id", id, ":", conditionMessage(e), "\n")
   })
