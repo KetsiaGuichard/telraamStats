@@ -1,0 +1,22 @@
+---
+title: "Preprocess data for traffic analysis"
+output: rmarkdown::html_vignette
+description:
+  Learn how to clean data from Telraam cameras to analyse traffic .
+vignette: >
+  %\VignetteIndexEntry{Preprocess data for traffic analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+
+knitr::knit_engines$set(yml = function(options) {
+})
+
+knitr::opts_chunk$set(eval = FALSE)
+```
