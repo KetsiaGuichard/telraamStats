@@ -1076,7 +1076,7 @@ unique(V2_meteo$segment_name)
 V2_meteo = V2_meteo %>% mutate(segment_fullname= ifelse(segment_fullname== "", "9000006552 - Boulevard Leannec 2", segment_fullname))
 
 # A l'aide d'un geom_point et d'un facet wrap
-ggplot(V2_meteo, aes(x = day, y = bike)) +
+ggplot(V2_meteo, aes(x = day, y = vehicule)) +
   geom_point() +
   facet_wrap(~segment_fullname) +
   labs(title = "Nombre de vélos par jour et par rue",

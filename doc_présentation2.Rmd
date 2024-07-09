@@ -30,10 +30,10 @@ library(data.table)
 library(tidyverse)
 
 # Données capteurs V2
-capteurs_V2 = read.csv("data/20230518_20240517_v2_sensors_extract.csv", sep=",", header=TRUE)
-capteurs_V2 = quarterly_to_hourly(capteurs_V2)
-#capteurs_V2 = stop_sensor(capteurs_V2, uptime_choice = 0.5, remove_data = TRUE)
+#capteurs_V2 = read.csv("data/20230518_20240517_v2_sensors_extract.csv", sep=",", header=TRUE)
+#capteurs_V2 = quarterly_to_hourly(capteurs_V2)
 #V2_meteo = new_data(meteo, capteurs_V2)
+#save(V2_meteo, file = "data/V2_meteo.RData")
 
 # Ou tout simplement
 
@@ -43,7 +43,7 @@ load("data/V2_meteo.RData")
 
 # Analyse du comportement du trafic en fonction de la météo, Approche 1
 
-Dans cette première approche, nous allons simplement analyser le comportement global du trafic en faisant varier le seuil de précipitation. Nous allons donc diviser les données en deux groupes, un groupe où il pleut et un groupe où il ne pleut pas. Nous allons ensuite comparer les deux groupes en fonction de différentes métriques. L'approche 1 consiste simplement à utiliser comme métrique **la moyenne** (par exemple: $NbreVéhiculesPluies / \sum observations$) et ensuite de tester sa significativité.
+Dans cette première approche, nous allons simplement analyser le comportement global du trafic en faisant varier le seuil de précipitation. Nous allons donc diviser les données en deux groupes, un groupe où il pleut et un groupe où il ne pleut pas. Nous allons ensuite comparer les deux groupes en fonction de différentes métriques. L'approche 1 consiste simplement à utiliser comme métrique **la moyenne** (par exemple: $NbreVéhiculesPluies/\sum observations$) et ensuite de tester sa significativité.
 
 Nous présenterons uniquement les résultats pour lesquels nous avons eu suffisamment de données pour des resultats interprétables car pour certaines périodes, il n'y a pas eu de pluie par exemple, et de ce fait, la comparaison n'est pas pertinente ou tout du moins, pas possible. Ou encore, les précipitations ont été trop faibles et de ce fait la variations du seuil de précipitation n'est pas mis en évidence.
 
@@ -53,7 +53,7 @@ Nous rappelons qu'ici nous utiliserons le test de Wilcoxon pour comparer les moy
 
 ## Comparaison des moyennes de vélos et de véhicules en fonction de seuils de précipitation
 
-Les resultats sont présenté commme suit: Le 1er tableau présente les résultats ( seuils, condition, moyenne et p-value) pour les vélos et le 2ème pour les véhicules et en 3e position nous avons le graphique nous permettant de visualiser l'évolution de la moyenne des vélos et des véhicules en fonction du seuil de pluie.
+Les resultats sont présentés comme suit: Le 1er tableau présente les résultats ( seuils, condition, moyenne et p-value) pour les vélos et le 2ème pour les véhicules et en 3e position nous avons le graphique nous permettant de visualiser l'évolution de la moyenne des vélos et des véhicules en fonction du seuil de pluie.
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, comment="", prompt=TRUE, "3"}
@@ -162,6 +162,8 @@ Pour cette période, il se peut que depuis l'installation des capteurs V2, il n'
 
 
 ```{r, echo=FALSE, "chunk 4"}
+V2_meteo <- V2_meteo %>%
+  filter(!is.na(RR1))
 
 # Initialisation des seuils et du tableau pour les résultats
 seuils <- seq(0.1, 6, by = 0.5)
@@ -169,7 +171,7 @@ resultats <- data.frame(seuil = numeric(), condition = character(), moyenne_velo
 
 # Calcul des moyennes et des p-values pour chaque seuil
 for (i in seuils) {
-  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > 2, "pluie", "non pluie")) %>% filter(hour %in% c(7, 8) & weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"))
+  V2_meteo_mod <- V2_meteo %>% mutate(pluie = ifelse(RR1 > i, "pluie", "non pluie")) %>% filter(hour %in% c(7, 8) & weekday %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"))
   
   # Vérifier que le facteur de regroupement a exactement 2 niveaux
   if (length(unique(V2_meteo_mod$pluie)) == 2) {
@@ -799,7 +801,7 @@ gridExtra::grid.arrange(p, q, ncol = 2)
 
 
 # suppression des variables qui viennent d'être créées pour libérer de la mémoire
-#rm(resultats, p, q, seuils, V2_meteo_mod, moyenne)
+rm(resultats, p, q, seuils, V2_meteo_mod, moyenne)
 ```
 
 
@@ -891,7 +893,7 @@ Pour la quantité de précipitation enregistrée les week-ends, on semble observ
 
 
 
-    Même analyse en filtrant tout d'abors sur la période non scolaire (holiday=TRUE) et en semaine
+    Même analyse en filtrant tout d'abord sur la période non scolaire (holiday=TRUE) et en semaine
 
 
 **Pas suffisamment de données**
@@ -977,11 +979,14 @@ rm(daily_data, proportions, p, q)
 Ces observations suggèrent que la météo a un impact significatif sur les proportions de vélos et de véhicules. Les cyclistes semblent moins enclins à utiliser leurs vélos par temps de pluie modérée à forte, tandis que la proportion de véhicules augmente dans ces conditions.
 
 
+```{r, include=FALSE, message=FALSE, warning=FALSE, "chunk 12"}
+
 # Plus de détails
 
-Nous pouvons confirmer la tendance générale présentée tout en haut en observant le comportant les jours de pluies et en distinguant le comportement le week-end (**marron**) et en semaine (**vert**).
+#Une autre façon de voir les choses est de regarder les proportions de vélos et de véhicules par jour et par condition.
+#Nous pouvons confirmer la tendance générale présentée tout en haut en observant le comportant les jours de pluies et en #distinguant le comportement le week-end (**marron**) et en semaine (**vert**).
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, "chunk 12"}
+
 # Filtrer les jours où il a plu
 days_with_rain <- V2_meteo %>% mutate(pluie = ifelse(RR1 > 1.5, "pluie", "non pluie")) %>% 
   group_by(day) %>%
@@ -1029,15 +1034,17 @@ gridExtra::grid.arrange(p, q, ncol = 2)
 
 # suppression des variables qui viennent d'être créées pour libérer de la mémoire
 rm(days_with_rain, hourly_averages, hourly_proportions, p, q, col)
+
+#De façon générale:
+
+#+ Pour les **Vélos**, on observe que dans la plupart des cas la proportion de vélos est plus basse les weekends de pluie (avec #quelques exceptions), tandis qu'en jours de non weekends, on a une sorte d'équilibre dans ce sens où on observe parfois une #pluie grande proportion aux heures pluvieuses et parfois une plus grande proportion aux heures non pluvieuses.
+
+#+ Pour les **véhicules** c'est le comportement inverse qui est observé.
+
+#Pour la suite nous allons voir si nous pouvons avoir un comportement particulier sur des capteurs spécifiques, tels que des #capteurs intallés sur des **pistes cyclables** et voir aussi les capteurs où on enregistre le plus de données de vélos sur une #longue période.
 ```
 
-De façon générale:
 
-+ Pour les **Vélos**, on observe que dans la plupart des cas la proportion de vélos est plus basse les weekends de pluie (avec quelques exceptions), tandis qu'en jours de non weekends, on a une sorte d'équilibre dans ce sens où on observe parfois une pluie grande proportion aux heures pluvieuses et parfois une plus grande proportion aux heures non pluvieuses.
-
-+ Pour les **véhicules** c'est le comportement inverse qui est observé.
-
-Pour la suite nous allons voir si nous pouvons avoir un comportement particulier sur des capteurs spécifiques, tels que des capteurs intallés sur des **pistes cyclables** et voir aussi les capteurs où on enregistre le plus de données de vélos sur une longue période.
 
 # Analyse sur les rues particulières
 
@@ -1087,7 +1094,7 @@ Et potentiellement regarder sur les rues ayant le plus de vélos pour étudier a
 
 ## Rues avec pistes cyclables
 
-+ Rue de Prieuré
++ Cas de: Rue de Prieuré
 
 ```{r, include=FALSE}
 # Filtrer les rues possédant des pistes cyclables
@@ -1232,7 +1239,7 @@ for (i in seuils) {
 # Afficher les résultats
 print(resultats)
 
-# Création du graphique
+# Création du graphique 
 p = ggplot(resultats, aes(x = seuil, y = moyenne_velo, color = condition, group = condition)) +
   geom_line() +
   geom_point() +
@@ -1606,8 +1613,9 @@ gridExtra::grid.arrange(p, bar_velo, q, bar_vehicule, ncol = 1, heights = c(3, 1
 
 ```
 
+
 Comme vous pouvez le constater sur les graphiques ci-dessus, on observe un phénomène étrange.
-Etrange dans ce sens où on a une significativité pour certaines différences de moyennes et pour de plus grandes différence on a une non significativité. Cela peut être dû à la taille de l'échantillon ou à la distribution des données.
+Etrange dans ce sens où on a une significativité pour certaines différences de moyennes et pour de plus grandes différence on a une non significativité. Cela peut être dû à la taille de l'échantillon. En effet, plus on considère une grande valeur de précipitation, moins on a de données pour effectuer le test de significativité. Cela peut expliquer pourquoi on observe une non significativité pour les plus grandes valeurs de précipitation.
 
 
 

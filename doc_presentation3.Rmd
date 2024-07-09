@@ -190,11 +190,14 @@ prop_precip_meteo = meteo %>% group_by(palier_precip) %>% summarise(prop_palier 
 prop_precip = V2_imputed_meteo %>% group_by(palier_precip) %>% summarise(prop = n()/nrow(V2_imputed_meteo), prop_velo = sum(bike, na.rm = TRUE)/sum(V2_imputed_meteo$bike), prop_vehicule = sum(vehicule, na.rm = TRUE)/sum(V2_imputed_meteo$vehicule)) %>% mutate(prop = paste0(round(prop*100, 1), "%"), prop_velo = paste0(round(prop_velo*100, 1), "%"), prop_vehicule = paste0(round(prop_vehicule*100, 1), "%"))
 
 # Histogramme des moyennes de vélos et de véhicules en fonction des paliers de précipitations sur 2 graphiques
-V2_imputed_meteo %>% group_by(palier_precip) %>% summarise(mean = mean(vehicle, na.rm = TRUE)) %>% ggplot(aes(x = palier_precip, y = mean)) + geom_bar(stat = "identity", fill="blue") + labs(title = "Moyenne de véhicules en fonction des paliers de précipitations", x = "Palier de précipitations", y = "Moyenne de véhicules") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + geom_text(aes(label = round(mean)), vjust = -0.5, size = 3) + geom_hline(yintercept = mean(V2_imputed_meteo$vehicle, na.rm = TRUE), linetype = "dashed", color = "red")
+V2_imputed_meteo %>% group_by(palier_precip) %>% summarise(mean = mean(vehicle, na.rm = TRUE)) %>% ggplot(aes(x = palier_precip, y = mean, fill=palier_precip)) + geom_bar(stat = "identity") + coord_polar("y", start=0) + labs(title = "Moyenne de véhicules en fonction des paliers de précipitations", x = "Moyenne de véhicules", y="") + theme_minimal() + geom_text(aes(label = round(mean)), vjust = 0, size = 3) + geom_hline(yintercept = mean(V2_imputed_meteo$vehicle, na.rm = TRUE), linetype = "dashed", color = "red")+ theme( axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(), axis.text.y = element_blank(),
+      axis.ticks.y = element_blank())
 
 
-V2_imputed_meteo %>% group_by(palier_precip) %>% summarise(mean = mean(bike, na.rm = TRUE)) %>% ggplot(aes(x = palier_precip, y = mean)) + geom_bar(stat = "identity", fill = "green") + labs(title = "Moyenne de vélos en fonction des paliers de précipitations", x = "Palier de précipitations", y = "Moyenne de vélos") + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + geom_text(aes(label = round(mean)), vjust = -0.5, size = 3) + geom_hline(yintercept = mean(V2_imputed_meteo$bike, na.rm = TRUE), linetype = "dashed", color = "red")
-
+V2_imputed_meteo %>% group_by(palier_precip) %>% summarise(mean = mean(bike, na.rm = TRUE)) %>% ggplot(aes(x = palier_precip, y = mean, fill=palier_precip)) + geom_bar(stat = "identity") + coord_polar("y", start=0) + labs(title = "Moyenne de vélos en fonction des paliers de précipitations", x = "Moyenne de vélos", y="") + theme_minimal() + geom_text(aes(label = round(mean)), vjust = 0, size = 3) + geom_hline(yintercept = mean(V2_imputed_meteo$bike, na.rm = TRUE), linetype = "dashed", color = "red")+ theme( axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(), axis.text.y = element_blank(),
+      axis.ticks.y = element_blank())
 
 prop_precip
 ```
@@ -348,61 +351,73 @@ En conclusion, nous avons une corrélation très forte entre les relevés mété
 
 # Etape suivante de l'analyse
 
-On sait desormais qu'il y a un lien entre les précipitations et la mobilité à Chateaubourg. Nous allons explorer un peu plus afin de savoir comment une journée pluvieuse peut impacter la mobilité le jour suivant. Pour cela, nous allons utiliser les données de la station météo de Rennes pour voir si les précipitations d'un jour peuvent impacter la mobilité le jour suivant.
+On sait desormais qu'il y a un lien entre les précipitations et la mobilité à Chateaubourg. Nous allons explorer un peu plus afin de savoir si on a connaissance du fait que le lendemain il va pleuvoir, comment le traffic va se comporter ces 2 jours. Va t-on observer une baisse de la mobilité le jour pluvieux sachant qu'on a eu cette information la veille?
 
-Un jour pluvieux sera considéré comme un jour où la quantité de précipitations est supérieure à 4mm. Ainsi, nous allons visualiser le comportement du total ou la moyenne de vélos et de véhicules le jour suivant un jour pluvieux et le comparer avec le jour pluvieux.
+Un jour pluvieux sera considéré comme un jour où la quantité de précipitations est supérieure à 4mm. Ainsi, nous allons visualiser le comportement du total ou la moyenne de vélos et de véhicules le jour précédent un jour pluvieux et le comparer avec le jour pluvieux.
 
-Pour le moment on ne regarde pas si le jour suivant il a aussi plu ou non.
+Pour le moment on ne regarde pas si le jour précédent il a aussi plu ou non.
 
 ```{r}
 # On commence par créer une nouvelle colonne "jour_pluie" qui va nous dire si le jour est pluvieux ou non
-V2_meteo_jour = V2_meteo %>% group_by(day) %>% summarise(RR1 = sum(RR1, na.rm = TRUE), bike = mean(bike, na.rm = TRUE), vehicule = mean(vehicule, na.rm = TRUE)) %>% mutate(jour_pluie = ifelse(RR1 > 4, "1", "0")) %>% arrange(day)
+V2_meteo_jour = V2_imputed_meteo_burel %>% group_by(day) %>% summarise(RR1 = sum(RR1, na.rm = TRUE), bike = mean(bike, na.rm = TRUE), vehicule = mean(vehicule, na.rm = TRUE)) %>% mutate(jour_pluie = ifelse(RR1 > 4, "1", "0")) %>% arrange(day)
 
 V2_meteo_jour$day  = lubridate::ymd(V2_meteo_jour$day)
 
 # Créons 2 dataframes vides: un pour les jours non pluvieux et un pour les jours pluvieux suivants
-jour_suivant = data.frame(day = character(), bike = numeric(), vehicule = numeric())
+jour_precedent = data.frame(day = character(), bike = numeric(), vehicule = numeric())
 jour_pluie = data.frame(day = character(), bike = numeric(), vehicule = numeric())
 
 # Remplissons les dataframes
 for(i in 1:(nrow(V2_meteo_jour)-1)){
   if(V2_meteo_jour$jour_pluie[i] == "1"){
     jour_pluie = rbind(jour_pluie, V2_meteo_jour[i, ])
-    jour_suivant = rbind(jour_suivant, V2_meteo_jour[i+1,])
+    jour_precedent = rbind(jour_precedent, V2_meteo_jour[i-1,])
   }
 }
 
 # Visualisons le comportement du total de vélos et de véhicules le jour suivant un jour pluvieux et le comparer avec le jour non pluvieux suivant
 ggplot(jour_pluie) + 
-    geom_line(aes(x=day, y=bike, group=1), color="red", linewidth=0.5) +
+    geom_point(aes(x=day, y=bike), color="red") +
     geom_smooth(aes(x=day, y=bike), colour="red", method="loess", formula = 'y~x') +
-    geom_line(data=jour_suivant, aes(x=day, y=bike, group=1), color="blue", linewidth=0.6) +
-    geom_smooth(data=jour_suivant, aes(x=day, y=bike), method="loess", colour="blue", formula = 'y~x') +
-    labs(title="Trafic de vélos les jours pluvieux (rouge) et les jours suivants (bleu)", 
+    geom_point(data=jour_precedent, aes(x=day, y=bike), color="blue") +
+    geom_smooth(data=jour_precedent, aes(x=day, y=bike), method="loess", colour="blue", formula = 'y~x') +
+    labs(title="Comparaison de la moyenne de vélos", subtitle="Jour pluvieux vs veille de jour pluvieux", 
          x="Jour", 
-         y="Total de vélos") +
+         y="Moyenne de vélos") +
     theme_minimal()
 
 ```
 
 
-On se rend compte que la différence n'est pas très marquée entre les moyenne de vélos les jours pluvieux et les jours suivants. 
+On se rend compte que la moyenne de vélos le jour pluvieux est plus faible que le jour non pluvieux sachant qu'on avait l'information qu'il allait pleuvoir.
 
-Quand est il des véhicules?
+Quand est il des véhicules? A t-on le même comportement? ou alors on observe une augmentation du nombre de véhicules le jour pluvieux ayant eu l'information(qu'il allait pleuvoir) la veille?
 
 
 ```{r}
+# Visualisons le comportement du total de véhicules le jour suivant un jour pluvieux et le comparer avec le jour non pluvieux suivant
 ggplot(jour_pluie) + 
-    geom_line(aes(x=day+1, y=vehicule, group=1), color="red", linewidth=0.5) +
-    geom_smooth(aes(x=day+1, y=vehicule), colour="red", method="loess", formula = 'y~x') +
-    geom_line(data=jour_suivant, aes(x=day, y=vehicule, group=1), color="blue", linewidth=0.6) +
-    geom_smooth(data=jour_suivant, aes(x=day, y=vehicule), method="loess", colour="blue", formula = 'y~x') +
-    labs(title="Trafic de véhicules les jours pluvieux (rouge) et les jours suivants (bleu)", 
+    geom_point(aes(x=day, y=vehicule), color="red") +
+    geom_smooth(aes(x=day, y=vehicule), colour="red", method="loess", formula = 'y~x') +
+    geom_point(data=jour_precedent, aes(x=day+1, y=vehicule), color="blue") +
+    geom_smooth(data=jour_precedent, aes(x=day+1, y=vehicule), method="loess", colour="blue", formula = 'y~x') +
+    labs(title="Comparaison de la moyenne de véhicule", subtitle="Jour pluvieux(rouge) vs veille de jour pluvieux(bleu)", 
          x="Jour", 
-         y="Total de vélos") +
+         y="Moyenne de véhicule") +
     theme_minimal()
+
+# Même chose mais avec un diagramme à moustache
+
 ```
 
 
+On observe que le nombre de véhicules les jours puvieux est plus élevé que la veille pour la période allant de Septembre à fin Janvier, et en même temps
 
+```{r}
+# Conversion de la variable DATE de meteo en type datetime
+meteo$DATE = as.POSIXct(meteo$DATE, format = "%Y-%m-%d %H:%M:%S")
+
+new_meteo %>% filter(!is.na(`rain (mm)`))
+ plot(meteo[-21097, "RR1"], meteo_vitre$RR1, col = ifelse(meteo[-21097, "RR1"] == meteo_vitre$RR1, "red", "blue"), xlab = "Précipitations Rennes", ylab = "Précipitations Vitré", pch=16)
+```
 
