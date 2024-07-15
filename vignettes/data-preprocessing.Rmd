@@ -20,3 +20,125 @@ knitr::knit_engines$set(yml = function(options) {
 
 knitr::opts_chunk$set(eval = FALSE)
 ```
+
+# Introduction
+
+the vignettes will show you how to preprocess data from Telraam cameras to analyse traffic with the functions provided by this package.
+
+Before we go on, we'll attach the packages we use.
+
+```{r setup, eval = TRUE}
+library(telraamStats)
+```
+
+We will also load the data. Here, we will use the dataset included with the package, but you can replicate these preprocessing functions using data from your own sensors. For more information on data retrieval, please refer to the dedicated vignette (vignette("data-details")).
+
+The included dataset is lazily loaded with the telraamStats package. If you have already called library(telraamStats), the dataset is already attached and can be accessed directly:
+
+```{r, eval=FALSE, results='asis'}
+head(traffic)
+```
+
+```{r, echo=FALSE, eval=TRUE}
+knitr::kable(head(traffic))
+```
+
+# Motivation for Data Preprocessing
+
+First of all, we need to see why we need to preprocess the data. The data from the Telraam cameras is not always clean and can contain missing values,inactivity period, bad quality measurements,outliers etc. We need to preprocess the data to make it suitable for analysis.
+
+Reasons for Missing Data
+
+Missing data in our dataset can be attributed to several factors:
+
+```         
+•   Weather Phenomena: like rain or fog that can obstruct the camera lens.
+•   Low Light: the camera may not be able to capture images in low light conditions like at night.
+•   Sensor Obstruction: if the camera is obstructed by objects like trees can cause abberations in the data.
+•   Wi-Fi Connection Issues or Power Outages which can cause the camera to stop recording data.
+```
+
+These interruptions can be random or sporadic and can vary in duration.
+
+### Identification of Missing Data
+
+Telraam uses uptime to evaluate the reliability of the data recorded by the sensors.
+
+```         
+•   Definition of Uptime: It measures the proportion of time during which the sensor has recorded information, varying from 0 to 1. For example, an uptime of 0.5 indicates that the sensor recorded data for 50% of the time within an hour.
+
+•   Reliability Criterion: Data is considered reliable if its uptime is greater than 0.5. For a measurement with an uptime of 0.5, the result over 30 minutes is adjusted by multiplying it by 2 to obtain an estimate over an hour.
+```
+
+### Importance of Imputing Missing Data
+
+Imputing missing data is crucial for:
+
+```         
+•   Preserving Data Quality: Imputation maintains data integrity by avoiding biases due to missing values.
+•   Improving Result Accuracy: It improves the precision of analyses by providing a complete and representative view.
+•   Enabling Advanced Analyses: Imputed data expands the base for advanced analyses such as statistical models or breakpoint detection.
+```
+
+By addressing these issues through preprocessing, we ensure that the data from Telraam cameras is clean, reliable, and ready for accurate traffic analysis.
+
+# Clean data from inactivity periods
+
+The first things to do when you want to use the data is to clean it from inactivity and nights periods. To do that we've create a function `retrieve_missing_data` compose of `replace_inactivity_period` and `retrieve_missing_hours` functions.
+
+CAROLINE AS TO COMPLETE....
+
+```{r}
+traffic_cleaned <- retrieve_missing_data(traffic)
+```
+
+# Impute Missing Data
+
+The next step is to impute the missing data. The package provides a function called `impute_missing_data` for this purpose. This function uses the `ranger` package and employs a machine learning algorithm called Random Forest to handle the imputation.
+
+### How Does This Algorithm Work?
+
+The Random Forest algorithm is a supervised learning algorithm used for both classification and regression tasks. It operates based on the concept of ensemble learning, which involves combining multiple models to solve complex problems and improve the overall performance of the model. For more detailed information on the Random Forest algorithm, you can refer to the following link: [Random Forest Algorithm](https://www.ibm.com/topics/random-forest#:~:text=Random%20forest%20is%20a%20commonly,both%20classification%20and%20regression%20problems.)
+
+The Random Forest algorithm is used in this function to predict missing data based on the temporal variables in the dataset. The algorithm is trained on the data with complete information and then used to predict the missing values.
+
+The temporal variables used to predict missing data are :
+
+-   `day_of_month`: the day of the month
+-   `hour`: the hour of the day
+-   `weekday`: the day of the week
+-   `month`: the month of the year
+-   `year`: the year
+-   `vacation`: if it’s a vacation day or not, and the type of vacation
+-   `week_number`: the week number of the year
+-   `segment_id`: the ID of the segment
+
+### How to Use the Function?
+
+The function `impute_missing_data` takes cleaned data as input and returns the data with missing values imputed. You can specify the sensor IDs for which you want to impute missing data. If you don't specify any sensor IDs, the function will impute missing data for all sensors.
+
+The `transport_type` parameter allows you to specify the type of transport you are interested in. It can be `"car"`, `"heavy"`, or `"vehicle"`, where `"vehicle"` is calculated as the sum of cars and heavy vehicles, providing a good approximation of the total traffic. You can also impute all three types of transport by setting `transport_type` to `"all"`. The default value is `"vehicle"`.
+
+You can also specify the `threshold_uptime` to use for imputing missing data. The function will replace all data where the uptime is below the threshold. The default value is `0.5.`
+
+```{r}
+traffic_imputed <- impute_missing_data(traffic_cleaned, sensors_id = 9000001844, transport_type = "vehicle", threshold_uptime = 0.5)
+```
+
+If you want to use other variables, you can specify them in the function with the `add_vars` parameter like this:
+
+```{r}
+traffic_imputed <- impute_missing_data(traffic_cleaned, add_vars = "direction")
+```
+
+To visualize which data have been imputed, a new column "imputed" is created. It is set to `"imputed"` if the data has been imputed and `"original"` if not.
+
+```{r}
+table(traffic_imputed$imputed)
+```
+
+# Using Advice
+
+-   To improve the quality of the imputation, provide as much data as possible to help the algorithms learn the specifics of your data. You can do this by expanding the range of your data or deciding to impute data from multiple sensors.
+
+Now that you have cleaned your data, you can explore and visualize it using the rest of our package. For more on data visualization, see the dedicated vignette (vignette("data-visualization"))

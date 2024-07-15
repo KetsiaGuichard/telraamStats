@@ -4,34 +4,33 @@
 \alias{create_and_train_model}
 \title{Create and train Random Forest model for traffic imputation}
 \usage{
-create_and_train_model(data, target, base_vars, threshold_uptime)
+create_and_train_model(
+  data_rf,
+  target,
+  base_vars,
+  threshold_uptime,
+  min.node.size = NULL,
+  mtry = NULL,
+  num_trees = 500
+)
 }
 \arguments{
-\item{data}{A preprocessed data frame containing traffic data.}
+\item{data_rf}{A preprocessed data frame containing traffic data.}
 
 \item{target}{Character. The target variable to impute.}
 
 \item{base_vars}{Character vector. Base variables used for prediction.}
 
 \item{threshold_uptime}{Numeric. Threshold for uptime to determine missing values.}
+
+\item{min.node.size}{Integer or NULL. Minimum node size for the Random Forest model. If NULL, the default value of 5 for regression is used.}
+
+\item{mtry}{Integer or NULL. Number of variables randomly sampled as candidates at each split. If NULL, the default value (number of variables / 3 for regression) is used.}
 }
 \value{
 A data frame with imputed values and imputation flags.
 }
 \description{
 This function creates and trains a Random Forest model for imputing missing traffic data.
-}
-\examples{
-data <- validate_and_preprocess_data(data = traffic,
-                                     transport_type = "car",
-                                     sensors_id = 9000001844,
-                                     base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date") )
-
-data <- create_and_train_model(data = data,
-                            target = "car",
-                            base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date"),
-                            threshold_uptime = 0.5)
-
-
 }
 \keyword{internal}

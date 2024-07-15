@@ -9,7 +9,10 @@ impute_missing_data(
   sensors_id = NULL,
   transport_type = "vehicle",
   threshold_uptime = 0.5,
-  add_vars = NULL
+  add_vars = NULL,
+  min.node.size = NULL,
+  mtry = NULL,
+  num_trees = 500
 )
 }
 \arguments{
@@ -21,7 +24,13 @@ impute_missing_data(
 
 \item{threshold_uptime}{Numeric. Threshold for uptime to determine missing values. Default is 0.5.}
 
-\item{add_vars}{Character vector. Base variables used for prediction. Default is c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id").}
+\item{add_vars}{Character vector. Additional variables used for prediction. Default is NULL.}
+
+\item{min.node.size}{Integer or NULL. Minimum node size for the Random Forest model. If NULL, the default value of 5 for regression is used.}
+
+\item{mtry}{Integer or NULL. Number of variables randomly sampled as candidates at each split. If NULL, the default value (number of variables / 3 for regression) is used.}
+
+\item{num_trees}{Integer. Number of trees to grow in the Random Forest model. Default is 500.}
 }
 \value{
 A data frame with imputed values for the specified transport type and a new column indicating whether the values were imputed or original.
@@ -39,7 +48,7 @@ When transport_type is "all", the function imputes values for car, vehicle, and 
 
 The function uses the uptime column to determine which data points need imputation. Values with uptime below the threshold_uptime are considered missing and are imputed.
 
-Time interval could be hourly or quarterly. The function will automatically detect the time interval based on the data and add a minute variable if its quarterly.
+Time interval could be hourly or quarterly. The function will automatically detect the time interval based on the data and add a minute variable if it's quarterly.
 }
 \examples{
 \dontrun{

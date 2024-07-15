@@ -4,7 +4,14 @@
 \alias{validate_and_preprocess_data}
 \title{Validate and preprocess data for traffic analysis}
 \usage{
-validate_and_preprocess_data(data, transport_type, sensors_id, base_vars)
+validate_and_preprocess_data(
+  data,
+  transport_type,
+  sensors_id,
+  base_vars,
+  add_vars = NULL,
+  threshold_uptime = 0.5
+)
 }
 \arguments{
 \item{data}{A data frame containing the traffic data.}
@@ -20,12 +27,5 @@ A preprocessed data frame ready for imputation.
 }
 \description{
 This function validates and preprocesses the input data for traffic analysis.
-}
-\examples{
-data <- validate_and_preprocess_data(data = traffic,
-                                     transport_type = "car",
-                                     sensors_id = 9000001844,
-                                     base_vars = c("day_of_month","hour","weekday","month","year","vacation","week_number","segment_id","date"))
-
 }
 \keyword{internal}
