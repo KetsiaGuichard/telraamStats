@@ -188,7 +188,7 @@ This package offers users the capability to fine-tune hyperparameters of the Ran
 
 ### How to Fine-tune Using `fine_tune_impute_missing_data`
 
-To optimize imputation quality, utilize the `fine_tune_impute_missing_data` function provided by this package, which fine-tunes these parameters to optimize the Random Forest model's ability to accurately impute missing data, ensuring robust and reliable results for traffic analysis.
+To optimize imputation quality, utilize the `fine_tune_impute_missing_data` function provided by this package, which fine-tunes these parameters with an [out-of-bag validation](https://bradleyboehmke.github.io/HOML/random-forest.html#hyperparameters) to optimize Random Forest model's ability to accurately impute missing data, ensuring robust and reliable results for traffic analysis.
 
 -   **Input Parameters:**
     -   `data`: The dataset containing the target variable and predictors.
@@ -200,7 +200,7 @@ To optimize imputation quality, utilize the `fine_tune_impute_missing_data` func
     -   `add_vars`: Additional variables to include in the model.
     -   `threshold_uptime`: Minimum uptime threshold for data inclusion.
 -   **Output:**
-    -   **best_params**: These are the optimal values for `mtry` and `min_n` that yielded the best performance according to the evaluation metric (typically [out-of-bag validation](https://bradleyboehmke.github.io/HOML/random-forest.html#hyperparameters),).
+    -   **best_params**: These are the optimal values for `mtry` and `min_n` that yielded the best performance according to the evaluation metric.
 
     -   **all_results**: This is a comprehensive table showing the performance for each tested combination of parameters. You can use it to understand how different parameter values affect the model's performance.
 
