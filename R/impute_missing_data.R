@@ -258,6 +258,7 @@ create_and_train_model <-
 #'
 #' @export
 #' @examples \dontrun{
+#'  traffic_clean <- retrieve_missing_data(traffic,remove_data = TRUE,successive_day = 2)
 #'  traffic_imputed <- impute_missing_data(traffic,
 #'    sensors_id = 9000001844,
 #'    transport_type = "vehicle",

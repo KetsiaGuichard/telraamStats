@@ -200,7 +200,27 @@ To optimize imputation quality, utilize the `fine_tune_impute_missing_data` func
     -   `add_vars`: Additional variables to include in the model.
     -   `threshold_uptime`: Minimum uptime threshold for data inclusion.
 -   **Output:**
-    -   Returns a list with the best hyperparameters (`mtry` and `min_n`) based on [out-of-bag validation](https://bradleyboehmke.github.io/HOML/random-forest.html#hyperparameters), along with detailed performance metrics.
+    -   **best_params**: These are the optimal values for `mtry` and `min_n` that yielded the best performance according to the evaluation metric (typically [out-of-bag validation](https://bradleyboehmke.github.io/HOML/random-forest.html#hyperparameters),).
+
+    -   **all_results**: This is a comprehensive table showing the performance for each tested combination of parameters. You can use it to understand how different parameter values affect the model's performance.
+
+### Interpretation of Fine-Tuning Results
+
+After running `fine_tune_impute_missing_data`, you will obtain a set of results that are important to understand:
+
+Key Considerations:
+
+\- A higher `mtry` means more variables are considered at each split. This can improve accuracy but also increases computation time.
+
+\- A larger `min_n` results in shallower trees, which can help prevent overfitting but might miss complex patterns in the data.
+
+Performance Metrics:
+
+\- Pay close attention to RMSE (Root Mean Square Error),, to evaluate the quality of imputation. Values closer to 0 for RMSE generally indicate better performance.
+
+Trade-offs:
+
+\- Keep in mind there may be a trade-off between imputation accuracy and computation time. Optimal parameters may not always be the most practical, especially with large datasets.
 
 ### Example Usage:
 
