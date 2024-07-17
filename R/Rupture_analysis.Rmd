@@ -1,0 +1,901 @@
+
+```{r}
+library(ranger)
+library(tidyverse)
+library(plotly)
+
+```
+
+
+
+```{r}
+source("/Users/paulvallee/Desktop/Stage CREM/Code R/Telraam Ketsia Version/R/preprocessing.R")
+source("/Users/paulvallee/Desktop/Stage CREM/Code R/Telraam Ketsia Version/ImputationNA/Utilities_functions.R")
+dataV2_not_imputed <- read.csv("/Users/paulvallee/Desktop/Stage CREM/Code R/data/20230518_20240517_v2_sensors_extract.csv")
+dataV2_not_imputed$uptime_quality <- ifelse(dataV2_not_imputed$uptime >=0.5 ,TRUE,FALSE)
+#dataV2_not_imputed <- retrieve_missing_data(dataV2_not_imputed)
+dataV2_not_imputed <- quarterly_to_hourly(dataV2_not_imputed)
+#dataV2 <- dataV2 %>% rename(segment_name = segment_fullname) %>%  filter(segment_name != "") %>%  mutate(segment_name = as.factor(as.character(gsub("[0-9-]+", "",segment_name))),uptime = as.numeric(uptime))
+dataV2 <- impute_missing_data(dataV2_not_imputed,threshold=0.7)
+
+table(dataV2$imputed)
+
+#dataV2_not_imputed <- dataV2_not_imputed %>% select(-vehicle.x,-vehicle.y) 
+```
+
+
+```{r}
+data_V2<- impute_missing_data(dataV2)
+```
+
+
+```{r}
+library(changepoint)
+res_plt <- cpt.meanvar(Burel$vehicle, method = "PELT",penalty = "MBIC")
+plot(res_plt, type = "l",cpt.col = "red",cpt.width = 2)
+```
+```{r}
+library(changepoint)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# Fonction pour appliquer cpt.meanvar avec différentes pénalités
+apply_cpt_meanvar <- function(data, penalties) {
+  results <- list()
+  for (penalty in penalties) {
+    tryCatch({
+      changepoint <- cpt.meanvar(data, method = "PELT", penalty = penalty)
+      results[[penalty]] <- changepoint
+    }, error = function(e) {
+      message(sprintf("Error with penalty %s: %s", penalty, e$message))
+    })
+  }
+  return(results)
+}
+
+# Fonction pour évaluer la qualité du modèle
+evaluate_model <- function(data, changepoint) {
+  segments <- cpts(changepoint)
+  n <- length(data)
+  
+  # Calculer la somme des carrés des résidus
+  rss <- sum((data - rep(param.est(changepoint)$mean, diff(c(0, segments, n))))^2)
+  
+  # Calculer le BIC
+  k <- length(segments) + 1  # nombre de segments
+  bic <- n * log(rss/n) + k * log(n)
+  
+  # Calculer l'AIC
+  aic <- n * log(rss/n) + 2 * k
+  
+  return(list(rss = rss, bic = bic, aic = aic, num_changes = k-1))
+}
+
+# Fonction principale
+analyze_changepoints <- function(data, penalties) {
+  # Appliquer cpt.meanvar avec différentes pénalités
+  results <- apply_cpt_meanvar(data, penalties)
+  
+  # Évaluer chaque modèle
+  evaluations <- lapply(results, function(x) evaluate_model(data, x))
+  
+  # Créer un dataframe avec les résultats
+  eval_df <- do.call(rbind, lapply(names(evaluations), function(penalty) {
+    data.frame(
+      penalty = penalty,
+      rss = evaluations[[penalty]]$rss,
+      bic = evaluations[[penalty]]$bic,
+      aic = evaluations[[penalty]]$aic,
+      num_changes = evaluations[[penalty]]$num_changes
+    )
+  }))
+  
+  # Trouver la meilleure pénalité basée sur le BIC
+  best_penalty <- eval_df$penalty[which.min(eval_df$bic)]
+  
+  # Visualiser les résultats
+  p <- ggplot(eval_df, aes(x = penalty)) +
+    geom_point(aes(y = bic, color = "BIC")) +
+    geom_point(aes(y = aic, color = "AIC")) +
+    scale_color_manual(values = c("BIC" = "blue", "AIC" = "green")) +
+    labs(title = "Critères d'information vs Pénalité",
+         x = "Pénalité", y = "Valeur du critère") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  print(p)
+  
+  return(list(evaluations = eval_df, best_penalty = best_penalty))
+}
+
+# Utilisation
+penalties <- c("SIC", "BIC", "AIC", "MBIC", "MAIC", "Hannan-Quinn", "Asymptotic", "Manual")
+results <- analyze_changepoints(Burel$vehicle, penalties)
+
+# Afficher les résultats
+print(results$evaluations)
+cat("Meilleure pénalité:", results$best_penalty)
+
+# Appliquer le modèle final avec la meilleure pénalité
+final_model <- cpt.meanvar(Burel$vehicle, method = "PELT", penalty = "MBIC")
+
+# Visualiser les points de rupture
+plot(final_model)
+```
+
+```{r}
+# Appliquer le modèle avec MBIC
+model_mbic <- cpt.meanvar(Burel$vehicle, method = "PELT", penalty = "MBIC")
+
+# Extraire les points de changement
+changepoints <- cpts(model_mbic)
+
+# Obtenir les dates correspondant aux points de changement
+changepoint_dates <- Burel$date[changepoints]
+
+print(changepoint_dates)
+```
+
+
+#Création des outliers pour voir si le modèle les détecte
+```{r}
+# Fonction pour créer des données aberrantes et retourner les dates des outliers
+create_outliers <- function(data, segment_id, type = "vehicle", percent = 1, proportion = 0.05) {
+  data_copy <- data
+  # Filtrer les données pour le segment spécifié
+  segment_data <- data_copy %>% filter(segment_id == !!segment_id)
+  
+  # Sélectionner aléatoirement une proportion de lignes
+  n_outliers <- floor(nrow(segsegment_data) * proportion)
+  outlier_indices <- sample(1:nrow(segment_data), n_outliers)
+  
+  # Augmenter ou diminuer les valeurs de 30%
+  segment_data$outliers <- segment_data[[type]]
+  segment_data$outliers[outlier_indices] <- segment_data[[type]][outlier_indices] * 
+    (1 + sample(c(-1, 1), n_outliers, replace = TRUE) * percent)
+  
+  # Mettre à jour les données avec les outliers
+  data_copy[data_copy$segment_id == segment_id, type] <- segment_data$outliers
+  
+  data_copy$imputed[outlier_indices] <- "Modified"
+  return(data_copy)
+}
+
+# Appliquer la fonction sur votre dataset
+dataV2_with_outliers <- create_outliers(dataV2, segment_id = 9000006552, type = "vehicle")
+dataV2_with_outliers %>% filter(imputed == "Modified")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+analyze_traffic <- function(data, segment_id, start_date = NULL, end_date = NULL, type = "vehicle") {
+  library(dplyr)
+  library(zoo)
+  library(changepoint)
+  library(ggplot2)
+  library(plotly)
+  library(purrr)
+
+
+  # Filtrer les données pour le segment spécifié
+  segment_data <- data %>% filter(segment_id == !!segment_id)
+  
+  # Filtrer les données pour la période spécifiée
+  if (!is.null(start_date)) {
+    segment_data <- segment_data %>% filter(date >= !!start_date)
+  }
+  if (!is.null(end_date)) {
+    segment_data <- segment_data %>% filter(date <= !!end_date)
+  }
+  
+  # Vérifier si le type de véhicule est valide
+  if (!(type %in% colnames(segment_data))) {
+    stop("Transport type does not exist in the data")
+  }
+  
+  # Enregistrer le type de transport comme colonne à analyser
+  segment_data <- segment_data %>% rename(transport = !!type)
+  
+  segment_name <- unique(segment_data$segment_name)
+  
+  # Appliquer le lissage
+  smoothed_data <- rollmean(segment_data$transport, k = 7, fill = TRUE, align = "center")
+  
+  # Appliquer PELT sur les données lissées
+  model_mbic <- cpt.meanvar(smoothed_data, method = "PELT", penalty = "MBIC")
+  changepoints <- cpts(model_mbic)
+  
+  # Fonction pour fusionner les périodes courtes
+  merge_short_periods <- function(changepoints, data) {
+    periods <- diff(c(0, changepoints, nrow(data)))
+    merged <- c()
+    i <- 1
+    while (i <= length(periods)) {
+      if (periods[i] < 24 && i < length(periods)) { # Moins d'un jour (24 heures)
+        # Calculer les moyennes des périodes adjacentes
+        mean_current <- mean(data$transport[(sum(periods[1:(i-1)]) + 1):(sum(periods[1:i]))])
+        mean_next <- mean(data$transport[(sum(periods[1:i]) + 1):(sum(periods[1:(i+1)]))])
+        mean_prev <- if(i > 1) mean(data$transport[(sum(periods[1:(i-2)]) + 1):(sum(periods[1:(i-1)]))]) else Inf
+        
+        # Fusionner avec la période la plus proche en moyenne
+        if (abs(mean_current - mean_prev) <= abs(mean_current - mean_next) && i > 1) {
+          periods[i-1] <- periods[i-1] + periods[i]
+          periods <- periods[-(i)]
+        } else {
+          periods[i+1] <- periods[i] + periods[i+1]
+          periods <- periods[-(i)]
+        }
+      } else {
+        i <- i + 1
+      }
+    }
+    return(cumsum(periods)[-length(periods)])
+  }
+  
+  # Appliquer la fusion des périodes courtes
+  changepoints <- merge_short_periods(changepoints, segment_data)
+  
+  date_changepoints <- segment_data$date[changepoints]
+  
+  # Créer un dataframe pour la visualisation
+  df_plot <- segment_data %>%
+    mutate(changepoint = ifelse(row_number() %in% changepoints, "Yes", "No"))
+  
+  # Plot PELT
+  plot_pelt <- ggplot(df_plot, aes(x = date, y = round(transport,0))) +
+    geom_line() +
+    geom_vline(xintercept = as.numeric(date_changepoints), color = "red", linetype = "dashed") +
+    theme_minimal() +
+    labs(title = paste("PELT Changepoints for Segment", segment_name),
+         x = "Time", y = paste(type, "Count"))
+  
+  plot_pelt <- ggplotly(plot_pelt)
+  
+  # Boxplots
+  segments <- split(df_plot, cumsum(df_plot$changepoint == "Yes"))
+  
+  # Définition de la fonction identify_outliers à l'intérieur de analyze_traffic
+  identify_outliers <- function(x) {
+    q1 <- quantile(x, 0.25)
+    q3 <- quantile(x, 0.75)
+    iqr <- q3 - q1
+    lower_bound <- q1 - 1.5 * iqr
+    upper_bound <- q3 + 1.5 * iqr
+    return(x < lower_bound | x > upper_bound)
+  }
+  
+  # Préparation des données pour les boxplots
+  boxplot_data <- map_dfr(seq_along(segments), ~{
+    segment <- segments[[.x]]
+    segment %>% mutate(period = paste0("P", .x))
+  })
+  
+  # Identifier les outliers pour chaque période
+  boxplot_data <- boxplot_data %>%
+    group_by(period) %>%
+    mutate(is_outlier = identify_outliers(transport)) %>%
+    ungroup()
+  
+  # Calculer les informations de période
+  period_info <- boxplot_data %>%
+    group_by(period) %>%
+    summarise(
+      start_date = min(date),
+      end_date = max(date),
+      n_days = as.numeric(round(difftime(max(date), min(date), units = "days"),0))
+    )
+   # Ajouter le nombre d'outliers par période
+  n_outliers <- boxplot_data %>%
+    filter(is_outlier) %>%
+    group_by(period) %>%
+    summarise(n_outliers = n())
+  
+  legend_df <- period_info %>%
+    left_join(n_outliers, by = "period") %>%
+    replace_na(list(n_outliers = 0))
+  
+  #Trier les périodes  par start_date 
+  legend_df <- legend_df %>% arrange(start_date)
+  # Créer le boxplot avec ggplot2
+  plot_boxplot <- suppressWarnings(
+    ggplot(boxplot_data, aes(x = factor(period, levels = unique(period)), y = transport)) +
+    geom_boxplot(outliers = F, fill = "lightblue") +  
+    geom_point(data = subset(boxplot_data, is_outlier), 
+               aes(text = paste("Date:", format(date, "%Y-%m-%d %H:%M"),
+                                "<br>Vehicle Count:", round(transport,0),
+                                "<br>Imputed:", imputed),
+                   color = as.factor(imputed)),  # Utilisez aes() ici
+               size = 1.5) +
+    theme_minimal() +
+    labs(title = paste("Traffic Periods for", segment_name),
+         x = "Period", y = "Vehicle Count") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  )
+  
+  plot_boxplot <- ggplotly(plot_boxplot, tooltip = "text")
+
+  
+  # Créer une table pour la légende
+  legend_table <- plot_ly(
+    type = 'table',
+    header = list(values = c("Period", "Start", "End", "Days", "Outliers"),
+                  align = c("left", "center", "center", "center", "center"),
+                  line = list(width = 1, color = 'black'),
+                  fill = list(color = 'grey'),
+                  font = list(family = "Arial", size = 10, color = "white")),
+    cells = list(values = list(legend_df$period, format(legend_df$start_date, "%Y-%m-%d %H:%M"), format(legend_df$end_date, "%Y-%m-%d %H:%M"), legend_df$n_days, legend_df$n_outliers),
+                 align = c("left", "center", "center", "center", "center"),
+                 line = list(color = "black", width = 1),
+                 font = list(family = "Arial", size = 9))
+  )
+  
+  # Combiner les graphiques
+  combined_plot <- subplot(
+    list(plot_pelt, plot_boxplot),
+   nrows = 2
+  ) %>% 
+    layout(
+      title = paste("Traffic Analysis for Segment", segment_name)
+    )
+  
+  result <- list(plot= combined_plot, table = legend_table ,period = period_info)
+  return(result)
+}
+
+# Utilisation de la fonction
+unique_segments <- unique(dataV2$segment_id)
+list_result <- list()
+
+for (id in unique_segments) {
+  tryCatch({
+    result <- suppressMessages(analyze_traffic(dataV2, id,type = "vehicle"))
+    list_result[[as.character(id)]] <- result
+    
+    # Afficher les graphiques
+    print(result$plot)
+  }, error = function(e) {
+    cat("Erreur pour le segment_id", id, ":", conditionMessage(e), "\n")
+  })
+}
+
+```
+
+
+
+
+
+```{r}
+analyze_traffic_period <- function(data, segment_id, data_period, type = "vehicle") {
+  library(dplyr)
+  library(ggplot2)
+  library(plotly)
+  library(purrr)
+  
+  # Filtrer les données pour le segment spécifié
+  segment_data <- data %>% filter(segment_id == !!segment_id)
+  
+  # Vérifier si le type de véhicule est valide
+  if (!(type %in% colnames(segment_data))) {
+    stop("Transport type does not exist in the data")
+  }
+  
+  # Enregistrer le type de transport comme colonne à analyser
+  segment_data <- segment_data %>% rename(transport = !!type)
+  
+  segment_name <- unique(segment_data$segment_name)
+  
+  # Assurer que les dates sont dans le bon format
+  segment_data <- segment_data %>% 
+    mutate(date = as.POSIXct(date, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")) %>%
+    arrange(date)
+  
+  data_period <- data_period %>%
+    mutate(start_date = as.POSIXct(start_date, format = "%Y-%m-%d %H:%M:%S", tz = "UTC"),
+           end_date = as.POSIXct(end_date, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")) %>%
+    arrange(start_date)
+  
+  # Fonction pour attribuer un segment à chaque date
+  assign_segment <- function(date, periods) {
+    for (i in 1:nrow(periods)) {
+      if (date >= periods$start_date[i] && date <= periods$end_date[i]) {
+        return(i)
+      }
+    }
+    return(NA)
+  }
+  
+  # Appliquer la fonction à chaque date dans segment_data
+  segment_data <- segment_data %>%
+    mutate(segment = sapply(date, assign_segment, periods = data_period))
+  
+  # Vérifier s'il y a des NA dans la colonne segment
+  if (any(is.na(segment_data$segment))) {
+    warning("Certaines dates n'ont pas pu être assignées à un segment.")
+  }
+  
+  # Diviser les données en segments
+  segments <- split(segment_data, segment_data$segment)
+  
+  # Plot PELT
+  plot_pelt <- ggplot(segment_data, aes(x = date, y = round(transport, 0))) +
+    geom_line() +
+    geom_vline(xintercept = as.numeric(data_period$start_date), color = "blue", linetype = "dashed") +
+    theme_minimal() +
+    labs(title = paste("PELT Changepoints for Segment", segment_name),
+         x = "Time", y = paste(type, "Count"))
+  
+  plot_pelt <- ggplotly(plot_pelt)
+  
+  # Définition de la fonction identify_outliers à l'intérieur de analyze_traffic_period
+  identify_outliers <- function(x) {
+    q1 <- quantile(x, 0.25,na.rm=T)
+    q3 <- quantile(x, 0.75,na.rm=T)
+    iqr <- q3 - q1
+    lower_bound <- q1 - 1.5 * iqr
+    upper_bound <- q3 + 1.5 * iqr
+    return(x < lower_bound | x > upper_bound)
+  }
+  
+  # Préparation des données pour les boxplots
+  boxplot_data <- map_dfr(seq_along(segments), ~{
+    segment <- segments[[.x]]
+    segment %>% mutate(period = paste0("P", .x))
+  })
+  
+  # Identifier les outliers pour chaque période
+  boxplot_data <- boxplot_data %>%
+    group_by(period) %>%
+    mutate(is_outlier = identify_outliers(transport)) %>%
+    ungroup()
+  
+  # Calculer les informations de période
+  period_info <- boxplot_data %>%
+    group_by(period) %>%
+    summarise(
+      start_date = min(date),
+      end_date = max(date),
+      n_days = as.numeric(round(difftime(max(date), min(date), units = "days"), 0))
+    )
+  
+  # Ajouter le nombre d'outliers par période
+  n_outliers <- boxplot_data %>%
+    filter(is_outlier) %>%
+    group_by(period) %>%
+    summarise(n_outliers = n())
+  
+  legend_df <- period_info %>%
+    left_join(n_outliers, by = "period") %>%
+    replace_na(list(n_outliers = 0))
+  
+  # Trier les périodes par start_date 
+  legend_df <- legend_df %>% arrange(start_date)
+  
+  # Créer le boxplot avec ggplot2
+ plot_boxplot <- suppressWarnings(
+    ggplot(boxplot_data, aes(x = factor(period, levels = unique(period)), y = transport)) +
+    geom_boxplot(outliers = F, fill = "lightblue") +  
+    geom_point(data = subset(boxplot_data, is_outlier), 
+               aes(text = paste("Date:", format(date, "%Y-%m-%d %H:%M"),
+                                "<br>Vehicle Count:", round(transport,0),
+                                "<br>Imputed:", imputed),
+                   color = as.factor(imputed)),  # Utilisez aes() ici
+               size = 1.5) +
+    theme_minimal() +
+    labs(title = paste("Traffic Periods for", segment_name),
+         x = "Period", y = "Vehicle Count") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  )
+ 
+  
+  plot_boxplot <- ggplotly(plot_boxplot, tooltip = "text")
+  
+  # Créer une table pour la légende
+  legend_table <- plot_ly(
+    type = 'table',
+    header = list(values = c("Period", "Start", "End", "Days", "Outliers"),
+                  align = c("left", "center", "center", "center", "center"),
+                  line = list(width = 1, color = 'black'),
+                  fill = list(color = 'grey'),
+                  font = list(family = "Arial", size = 10, color = "white")),
+    cells = list(values = list(legend_df$period, format(legend_df$start_date, "%Y-%m-%d %H:%M:%S"), format(legend_df$end_date, "%Y-%m-%d %H:%M:%S"), legend_df$n_days, legend_df$n_outliers),
+                 align = c("left", "center", "center", "center", "center"),
+                 line = list(color = "black", width = 1),
+                 font = list(family = "Arial", size = 9))
+  )
+  
+  # Combiner les graphiques
+  combined_plot <- subplot(
+    list(plot_pelt, plot_boxplot),
+    nrows = 2
+  ) %>% 
+    layout(
+      title = paste("Traffic Analysis for Segment", segment_name)
+    )
+  
+  result <- list(plot = combined_plot, table = legend_table)
+  return(result)
+}
+```
+
+
+
+
+#Tester la différence entre les imputations et les données originales
+
+```{r}
+load("/Users/paulvallee/Desktop/Stage CREM/Code R/data/segments_2ans.RData")
+data_04$segment_name <- "RueDesEcoles-14"
+segments <- rbind(data_01,data_02,data_04,data_05,data_06,data_07,data_08,data_10,data_11,data_13,data_14,data_15,data_16,data_18)
+#segments <- retrieve_missing_data(segments,successive_day =2) 
+segments <- retrieve_missing_hours(segments,0.5)
+segments_ni <- segments %>% mutate(vehicle = car + heavy)
+segments <- impute_missing_data(segments)
+
+```
+
+```{r}
+# Utilisation de la fonction
+unique_segments <- unique(segments$segment_id)
+list_result <- list()
+
+for (id in unique_segments) {
+  tryCatch({
+    result <- suppressMessages(analyze_traffic(segments, id,type = "vehicle"))
+    list_result[[as.character(id)]] <- result
+    
+    # Afficher les graphiques
+    #print(result)
+  }, error = function(e) {
+    cat("Erreur pour le segment_id", id, ":", conditionMessage(e), "\n")
+  })
+}
+
+
+
+
+
+# Utilisation de la fonction avec les périodes obtenues après imputation
+unique_segments <- unique(segments_ni$segment_id)
+list_result_ni <- list()
+
+for (id in unique_segments) {
+  tryCatch({
+    data_period <- list_result[[as.character(id)]]$period
+    result <- suppressMessages(analyze_traffic_period(segments_ni, id, data_period,type = "vehicle"))
+    list_result_ni[[paste0(as.character(id), "_ni")]] <- result
+    
+    # Afficher les graphiques
+    #print(result)
+  }, error = function(e) {
+    cat("Erreur pour le segment_id", id, ":", conditionMessage(e), "\n")
+  })
+}
+```
+
+# Comparaison des resultat de list_result et list_result_ni pour chaque segments
+```{r}
+# Comparaison des résultats
+for (id in unique_segments) {
+  result <- list_result[[as.character(id)]]
+  result_ni <- list_result_ni[[paste0(as.character(id), "_ni")]]
+  
+
+  print(paste("Segment ID:", id))
+  print(result)
+  print(result_ni)
+}
+```
+
+
+```{r}
+for (id in unique_segments) {print( list_result[[as.character(id)]]$plot)}
+```
+
+```{r}
+
+analyze_traffic_combined <- function(data, segment_id, start_date = NULL, end_date = NULL, type = "vehicle") {
+  library(dplyr)
+  library(zoo)
+  library(changepoint)
+  library(ggplot2)
+  library(plotly)
+  library(purrr)
+
+  # Filtrer les données pour le segment spécifié
+  segment_data <- data %>% filter(segment_id == !!segment_id)
+  
+  # Filtrer les données pour la période spécifiée
+  if (!is.null(start_date)) {
+    segment_data <- segment_data %>% filter(date >= !!start_date)
+  }
+  if (!is.null(end_date)) {
+    segment_data <- segment_data %>% filter(date <= !!end_date)
+  }
+  
+  # Vérifier si le type de véhicule est valide
+  if (!(type %in% colnames(segment_data))) {
+    stop("Transport type does not exist in the data")
+  }
+  
+
+  
+  
+  segment_name <- unique(segment_data$segment_name)
+  
+  # Créer une copie des données non imputées
+  segment_data_non_imputed <- segment_data %>% mutate(vehicle = car + heavy) %>% 
+    rename(transport = !!type) %>% filter(uptime_quality)
+  
+  # Imputer les données manquantes
+  segment_data_imputed <- impute_missing_data(segment_data,transport_type = type ) %>% rename(transport = !!type)
+  print(segment_data_imputed %>% filter(imputed == "imputed"))
+  # Appliquer le lissage sur les données imputées
+  smoothed_data <- rollmean(segment_data_imputed$transport, k = 7, fill = NA, align = "center")
+  
+  # Supprimer les NA du début et de la fin pour PELT
+  smoothed_data_clean <- na.omit(smoothed_data)
+  
+  # Appliquer PELT sur les données lissées et nettoyées
+  model_mbic <- cpt.meanvar(smoothed_data_clean, method = "PELT", penalty = "MBIC")
+  changepoints <- cpts(model_mbic)
+  
+  # Ajuster les points de changement pour correspondre aux indices originaux
+  first_non_na <- which(!is.na(smoothed_data))[1]
+  changepoints <- changepoints + first_non_na - 1
+  
+  # Fonction pour fusionner les périodes courtes
+  merge_short_periods <- function(changepoints, data) {
+    periods <- diff(c(0, changepoints, nrow(data)))
+    merged <- c()
+    i <- 1
+    while (i <= length(periods)) {
+      if (periods[i] < 24 && i < length(periods)) { # Moins d'un jour (24 heures)
+        # Calculer les moyennes des périodes adjacentes
+        mean_current <- mean(data$transport[(sum(periods[1:(i-1)]) + 1):(sum(periods[1:i]))], na.rm = TRUE)
+        mean_next <- mean(data$transport[(sum(periods[1:i]) + 1):(sum(periods[1:(i+1)]))], na.rm = TRUE)
+        mean_prev <- if(i > 1) mean(data$transport[(sum(periods[1:(i-2)]) + 1):(sum(periods[1:(i-1)]))], na.rm = TRUE) else Inf
+        
+        # Vérifier que les moyennes ne sont pas NA
+        if (!is.na(mean_current) && !is.na(mean_next) && !is.na(mean_prev)) {
+          # Fusionner avec la période la plus proche en moyenne
+          if (abs(mean_current - mean_prev) <= abs(mean_current - mean_next) && i > 1) {
+            periods[i-1] <- periods[i-1] + periods[i]
+            periods <- periods[-(i)]
+          } else {
+            periods[i+1] <- periods[i] + periods[i+1]
+            periods <- periods[-(i)]
+          }
+        } else {
+          i <- i + 1
+        }
+      } else {
+        i <- i + 1
+      }
+    }
+    return(cumsum(periods)[-length(periods)])
+  }
+
+  # Appliquer la fusion des périodes courtes
+  changepoints <- merge_short_periods(changepoints, segment_data_imputed)
+  
+  date_changepoints <- segment_data_imputed$date[changepoints]
+  
+  # Créer un dataframe pour la visualisation
+  df_plot <- segment_data_imputed %>%
+    mutate(changepoint = ifelse(row_number() %in% changepoints, "Yes", "No"))
+  
+  # Plot PELT
+  plot_pelt <- ggplot() +
+    geom_line(data = df_plot, aes(x = date, y = round(transport, 0))) +
+    geom_point(data = df_plot, aes(x = date, y = round(transport, 0), color = as.factor(imputed)), size = 0.65) +
+    geom_vline(xintercept = as.numeric(date_changepoints), color = "red", linetype = "dashed") +
+    theme_minimal() +
+    labs(title = paste("PELT Changepoints for Segment", segment_name),
+         x = "Time", y = paste(type, "Count"))
+
+  plot_pelt <- ggplotly(plot_pelt)
+  
+  # Préparation des données pour les boxplots
+  all_breaks <- c(min(segment_data_imputed$date), date_changepoints, max(segment_data_imputed$date))
+  
+  assign_period <- function(date, breaks) {
+    period <- findInterval(date, breaks)
+    return(paste0("P", period))
+  }
+  
+  boxplot_data_imputed <- segment_data_imputed %>%
+    mutate(period = sapply(date, assign_period, breaks = all_breaks))
+  
+  boxplot_data_non_imputed <- segment_data_non_imputed %>%
+    mutate(period = sapply(date, assign_period, breaks = all_breaks))
+  
+  # Identifier les outliers pour chaque période et type de données
+  identify_outliers <- function(x) {
+    q1 <- quantile(x, 0.25, na.rm = TRUE)
+    q3 <- quantile(x, 0.75, na.rm = TRUE)
+    iqr <- q3 - q1
+    lower_bound <- q1 - 1.5 * iqr
+    upper_bound <- q3 + 1.5 * iqr
+    return(x < lower_bound | x > upper_bound)
+  }
+  
+  boxplot_data_imputed <- boxplot_data_imputed %>%
+    group_by(period) %>%
+    mutate(is_outlier = identify_outliers(transport)) %>%
+    ungroup()
+  
+  boxplot_data_non_imputed <- boxplot_data_non_imputed %>%
+    group_by(period) %>%
+    mutate(is_outlier = identify_outliers(transport)) %>%
+    ungroup() 
+  
+  # Créer le boxplot pour les données imputées
+  plot_boxplot_imputed <- suppressWarnings(
+    ggplot(boxplot_data_imputed, aes(x = factor(period, levels = unique(period)), y = transport)) +
+    geom_boxplot(outliers = F, fill = "indianred2") +  
+    geom_point(data = subset(boxplot_data_imputed, is_outlier), 
+               aes(text = paste("Date:", format(date, "%Y-%m-%d %H:%M"),
+                                "<br>Vehicle Count:", round(transport,0),
+                                "<br>Imputed:", imputed),
+                   color = as.factor(imputed)), 
+               size = 1.5) +
+    theme_minimal()  +
+    labs(title = paste("Traffic Periods for", segment_name, "(Imputed Data)"),
+         x = "Period", y = "Vehicle Count") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)))
+    
+  plot_boxplot_imputed <- ggplotly(plot_boxplot_imputed, tooltip = "text")
+
+  # Créer le boxplot pour les données non imputées
+plot_boxplot_non_imputed <- suppressWarnings(
+    ggplot(boxplot_data_non_imputed, aes(x = factor(period, levels = unique(period)), y = transport)) +
+    geom_boxplot(fill = "lightblue", outliers = FALSE) +
+    geom_point(data = subset(boxplot_data_non_imputed, is_outlier), 
+               aes(text = paste("Date:", format(date, "%Y-%m-%d %H:%M"),
+                                "<br>Vehicle Count:", round(transport, 0)))) +
+    theme_minimal() +
+    labs(title = paste("Traffic Periods for", segment_name, "(Non-Imputed Data)"),
+         x = "Period", y = "Vehicle Count") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+)
+
+plot_boxplot_non_imputed <- ggplotly(plot_boxplot_non_imputed, tooltip = "text")
+# Calculer les informations de période pour les données imputées
+period_info <- boxplot_data_imputed %>%
+  group_by(period) %>%
+  summarise(
+    start_date = min(date),
+    end_date = max(date),
+    n_days = as.numeric(round(difftime(max(date), min(date), units = "days"), 0)),
+    n_total_data = n(),
+    n_original_data = sum(imputed == "original"),
+    n_imputed_data = n_total_data - n_original_data,  # Nombre de données imputées
+    pct_imputed = ifelse(n_total_data == 0, 0, round(100 * n_imputed_data / n_total_data, 2)),  # Éviter la division par zéro
+    n_outliers_after_imputation = sum(ifelse(is_outlier, 1, 0)),  # Nombre d'outliers après imputation
+    n_imputed_outliers = sum(ifelse(is_outlier & imputed == "imputed", 1, 0)),  # Nombre d'outliers imputés
+    n_outliers_original = n_outliers_after_imputation - n_imputed_outliers
+  ) %>%
+  arrange(start_date)
+
+# Remplacer les NA par 0 pour les colonnes numériques
+period_info[is.na(period_info)] <- 0
+
+# Calculer le pourcentage de données imputées par période
+period_info <- period_info %>%
+  mutate(
+    pct_imputed = ifelse(is.na(pct_imputed), 0, pct_imputed),  # Remplacer les NA par 0
+    n_imputed_data = ifelse(is.na(n_imputed_data), 0, n_imputed_data)
+  )
+
+# Calculer les outliers avant imputation
+n_outliers_before_imputation <- boxplot_data_non_imputed %>%
+  group_by(period) %>%
+  summarise(n = sum(ifelse(is_outlier, 1, 0))) %>%
+  arrange(start_date)
+
+# Créer une table pour la légende
+legend_table <- plot_ly(
+  type = 'table',
+  header = list(values = c("Period", "Start", "End", "Days", "Total Data", "Original Data", "Imputed Data", "% Imputed", "Outliers (Before Imputation)", "Outliers (After Imputation)", "Outliers (Original)", "Imputed Outliers"),
+                align = c("left", "center", "center", "center", "center", "center", "center", "center", "center", "center", "center", "center"),
+                line = list(width = 1, color = 'black'),
+                fill = list(color = 'grey'),
+                font = list(family = "Arial", size = 10, color = "white")),
+  cells = list(values = list(period_info$period, 
+                             format(period_info$start_date, "%Y-%m-%d %H:%M"), 
+                             format(period_info$end_date, "%Y-%m-%d %H:%M"), 
+                             period_info$n_days,
+                             period_info$n_total_data,
+                             period_info$n_original_data,
+                             period_info$n_imputed_data,
+                             period_info$pct_imputed,
+                             n_outliers_before_imputation$n,
+                             period_info$n_outliers_after_imputation,
+                             period_info$n_outliers_original,
+                             period_info$n_imputed_outliers),
+               align = c("left", "center", "center", "center", "center", "center", "center", "center", "center", "center", "center", "center"),
+               line = list(color = "black", width = 1),
+               font = list(family = "Arial", size = 9))
+)
+
+  # Combiner les graphiques
+  combined_plot <- subplot(
+    list(plot_pelt, plot_boxplot_imputed, plot_boxplot_non_imputed),
+    nrows = 3
+  ) %>% 
+    layout(
+      title = paste("Traffic Analysis for Segment", segment_name)
+    )
+  
+  result <- list(plot = combined_plot, table = legend_table)
+  return(result)
+}
+
+
+
+result_comb <- analyze_traffic_combined(dataV2_not_imputed, 9000006227, type = "vehicle")
+result_comb$plot
+result_comb$table
+```
+
+
+
+
+```{r}
+ids <- unique(segments_ni$segment_id)
+segments_ni$date <- as.POSIXct(segments_ni$date, format = "%Y-%m-%d %H:%M:%S")
+for (i in 1:length(ids)) {
+  result_comb <- suppressWarnings(analyze_traffic_combined(segments_ni, ids[i], type = "vehicle"))
+  print(result_comb$plot)
+  print(result_comb$table)
+}
+
+
+
+```
+
+
+```{r}
+suppressWarnings(analyze_traffic_combined(segments_ni, 9000001877, type = "vehicle"))
+#impute_missing_data(segments_ni,sensors_id=9000001844 ) %>% filter(day == "2023-03-06")
+```
+```{r}
+impute_missing_data(segments_ni,sensors_id=9000001877 ) %>% filter(imputed == "imputed" & uptime_quality & day == "2022-09-19") 
+View(data_07)  
+segments_ni %>% filter(segment_id == 9000001877)
+```
+
+
+
+
+# Mettre le bazard dans les resultats
+```{r}
+analyze_traffic(dataV2_with_outliers, 9000006552)
+print(outlier_dates)
+```
+
+
+
+```{r}
+start <- Sys.time()
+impute_missing_data(segments_ni,transport_type = "all")
+end <- Sys.time()
+end - start
+
+start <- Sys.time()
+impute_missing_data(segments_ni,transport_type = "vehicle")
+end <- Sys.time()
+end - start
+```
+
