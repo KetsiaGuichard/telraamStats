@@ -80,6 +80,10 @@ retrieve_missing_data <- function(data,
 #' traffic_without_nighttime <- retrieve_missing_hours(traffic, threshold_uptime = 0.3)
 
 retrieve_missing_hours <- function(data, threshold_uptime = 0.5) {
+
+  # Convert date column to datetime format
+  data$date <- ymd_hms(data$date)
+
   # Determine season based on date
   data <- data %>%
     mutate(season = case_when(
@@ -132,6 +136,9 @@ retrieve_missing_hours <- function(data, threshold_uptime = 0.5) {
 #'                                                         show_graph = TRUE)
 
 replace_inactivity_period <- function(data, successive_day = 2, threshold_uptime = 0.5, remove_data = TRUE, show_graph = TRUE) {
+
+  # Convert date column to datetime format
+  data$date <- ymd_hms(data$date)
 
   # Function to identify inactive periods
   identify_inactive_periods <- function(df) {
@@ -195,3 +202,4 @@ replace_inactivity_period <- function(data, successive_day = 2, threshold_uptime
 
   return(result)
 }
+
