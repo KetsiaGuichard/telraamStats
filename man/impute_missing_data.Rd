@@ -52,6 +52,7 @@ Time interval could be hourly or quarterly. The function will automatically dete
 }
 \examples{
 \dontrun{
+ traffic_clean <- retrieve_missing_data(traffic,remove_data = TRUE,successive_day = 2)
  traffic_imputed <- impute_missing_data(traffic,
    sensors_id = 9000001844,
    transport_type = "vehicle",

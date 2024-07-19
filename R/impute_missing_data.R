@@ -141,9 +141,9 @@ validate_and_preprocess_data <- function(data,
   }
   else {
     data <- data %>%
-      mutate(vehicle = ifelse(.data$uptime < threshold_uptime,NA,car + heavy),
-             car = ifelse(.data$uptime < threshold_uptime,NA,car),
-             heavy = ifelse(.data$uptime < threshold_uptime,NA,heavy))
+      mutate(vehicle = ifelse(.data$uptime < threshold_uptime,NA,.data$car + .data$heavy),
+             car = ifelse(.data$uptime < threshold_uptime,NA,.data$car),
+             heavy = ifelse(.data$uptime < threshold_uptime,NA,.data$heavy))
   }
 
   return(data)
@@ -436,7 +436,7 @@ fine_tune_impute_missing_data <- function(data, target_col="vehicle",sensors_id 
         importance = 'impurity',
         oob.error = TRUE
       )
-      return(tibble(mtry = mtry, min_n = min_n, RMSE = sqrt(model$prediction.error)))
+      return(tibble(mtry = mtry, min_n = min_n, "RMSE" = sqrt(model$prediction.error)))
     }, error = function(e) {
       warning(paste("Error in model with mtry =", mtry, "and min_n =", min_n, ":", e$message))
       return(NULL)
@@ -453,7 +453,7 @@ fine_tune_impute_missing_data <- function(data, target_col="vehicle",sensors_id 
   } else {
     # Find best parameters
     best_params <- results %>%
-      arrange(RMSE) %>%
+      arrange("RMSE") %>%
       slice(1)
   }
 
