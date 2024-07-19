@@ -23,8 +23,7 @@
 #'                                                   "month", year", "vacation",
 #'                                                   "week_number", "segment_id", "date"),
 
-validate_and_preprocess_data <-
-  function(data,
+validate_and_preprocess_data <- function(data,
            transport_type,
            sensors_id,
            base_vars,
@@ -132,9 +131,17 @@ validate_and_preprocess_data <-
     }
 
     # Prepare data for model training
+    if (transport_type != "all"){
     data <- data %>%
       mutate(y = ifelse(.data$uptime < threshold_uptime,
                         NA,!!sym(transport_type))) %>% select(-!!sym(transport_type))
+    }
+    else {
+      data <- data %>%
+        mutate(vehicle = ifelse(.data$uptime < threshold_uptime,NA,car + heavy),
+               car = ifelse(.data$uptime < threshold_uptime,NA,car),
+               heavy = ifelse(.data$uptime < threshold_uptime,NA,heavy))
+    }
 
     return(data)
   }
@@ -301,16 +308,21 @@ impute_missing_data <-
 
     # Impute data based on transport type
     if (transport_type == "all") {
-      # Impute 'vehicle' and 'car' separately
+      # Impute 'vehicle' and 'car' ,'heavy' separately
+      data_vehicle <- data %>% rename(y = .data$vehicle)
       data_vehicle <-
-        create_and_train_model(data, "vehicle", base_vars, threshold_uptime,
+        create_and_train_model(data_vehicle, "vehicle", base_vars, threshold_uptime,
                                min.node.size = min.node.size,mtry = mtry,num_trees = num_trees)
+      data_car <- data %>% rename(y = .data$car)
       data_car <-
-        create_and_train_model(data, "car", base_vars, threshold_uptime,
+        create_and_train_model(data_car, "car", base_vars, threshold_uptime,
                                min.node.size = min.node.size,mtry = mtry,num_trees = num_trees)
+
+      data_heavy <- data %>% rename(y = .data$heavy)
       data_heavy <-
-        create_and_train_model(data, "heavy", base_vars, threshold_uptime,
+        create_and_train_model(data_heavy, "heavy", base_vars, threshold_uptime,
                                min.node.size = min.node.size,mtry = mtry,num_trees = num_trees)
+
       # Calculate 'heavy' as max(0, vehicle - car)
       data_complete <- data_vehicle %>%
         select(.data$vehicle,
@@ -411,25 +423,36 @@ fine_tune_impute_missing_data <- function(data, target_col="vehicle",sensors_id 
 
   # Function to train and evaluate a single model
   evaluate_model <- function(mtry, min_n) {
-    model <- ranger(
-      formula = y ~ .,
-      data = data,
-      num.trees = num_trees,
-      mtry = mtry,
-      min.node.size = min_n,
-      importance = 'impurity',
-      oob.error = TRUE
-    )
-
-    return(tibble(mtry = mtry, min_n = min_n, "RMSE" = sqrt(model$prediction.error)))
+    tryCatch({
+      model <- ranger(
+        formula = y ~ .,
+        data = data,
+        num.trees = num_trees,
+        mtry = mtry,
+        min.node.size = min_n,
+        importance = 'impurity',
+        oob.error = TRUE
+      )
+      return(tibble(mtry = mtry, min_n = min_n, RMSE = sqrt(model$prediction.error)))
+    }, error = function(e) {
+      warning(paste("Error in model with mtry =", mtry, "and min_n =", min_n, ":", e$message))
+      return(NULL)
+    })
   }
 
   # Evaluate all combinations
   results <- purrr::map2_dfr(rf_grid$mtry, rf_grid$min_n, evaluate_model)
 
-  # Find best parameters
-  best_params <- results %>% slice_min("RMSE")
-
+  # Check if all RMSE values are the same
+  if (length(unique(results$RMSE)) == 1) {
+    warning("All RMSE values are identical. Returning the first set of parameters.")
+    best_params <- results[1, ]
+  } else {
+    # Find best parameters
+    best_params <- results %>%
+      arrange(RMSE) %>%
+      slice(1)
+  }
 
   return(list(best_params = best_params, all_results = results))
 }
