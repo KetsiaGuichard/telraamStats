@@ -114,7 +114,7 @@ validate_and_preprocess_data <- function(data,
           as.factor(.data$vacation)
         ),
         week_number = as.numeric(.data$week_number),
-        segment_id = if (is.factor(.data$segment_id)) {
+        segment_id = if (is.factor(.data$segment_id))   {
           factor(as.character(.data$segment_id),
                  levels = levels(.data$segment_id))
         } else if (is.list(.data$segment_id)) {
