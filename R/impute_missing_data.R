@@ -14,14 +14,14 @@
 #'
 #' @keywords internal
 #' @export
-#' @examples
+#'
 #' @examples
 #' data <- validate_and_preprocess_data(data = traffic,
 #'                                      transport_type = "car",
 #'                                      sensors_id = 9000001844,
 #'                                      base_vars = c("day_of_month", "hour", "weekday",
-#'                                                   "month", year", "vacation",
-#'                                                   "week_number", "segment_id", "date"),
+#'                                                   "month", "year", "vacation",
+#'                                                   "week_number", "segment_id", "date"))
 
 validate_and_preprocess_data <- function(data,
                                          transport_type,
@@ -35,10 +35,17 @@ validate_and_preprocess_data <- function(data,
 
   # Add missing additional variables to the model
   if (!is.null(add_vars)) {
-
-    if (!is.character(add_vars)) {stop("add_vars must be a character vector")}
-    if ((any(add_vars %in% base_vars))) {stop("add_vars must be different from base_vars : day_of_month,hour,weekday,month,year,vacation,week_number,segment_id ")}
-    if (!all(add_vars %in% colnames(data))) {stop("add_vars must be present in the data")}
+    if (!is.character(add_vars)) {
+      stop("add_vars must be a character vector")
+    }
+    if ((any(add_vars %in% base_vars))) {
+      stop(
+        "add_vars must be different from base_vars : day_of_month,hour,weekday,month,year,vacation,week_number,segment_id "
+      )
+    }
+    if (!all(add_vars %in% colnames(data))) {
+      stop("add_vars must be present in the data")
+    }
 
     base_vars <- c(base_vars, add_vars)
   }
@@ -97,7 +104,7 @@ validate_and_preprocess_data <- function(data,
 
   # Filter data by segment name if specified
   if (!is.null(sensors_id)) {
-    data <- data[data$segment_id %in% sensors_id,]
+    data <- data[data$segment_id %in% sensors_id, ]
   }
 
   # Convert data types to the correct format
@@ -128,22 +135,25 @@ validate_and_preprocess_data <- function(data,
     )
 
   # Calculate vehicle if not present
-  if (!"vehicle" %in% colnames(data) && transport_type %in% c("vehicle","all") ) {
+  if (!"vehicle" %in% colnames(data) &&
+      transport_type %in% c("vehicle", "all")) {
     data <- data %>%
       mutate(vehicle = .data$car + .data$heavy)
   }
 
   # Prepare data for model training
-  if (transport_type != "all"){
+  if (transport_type != "all") {
     data <- data %>%
       mutate(y = ifelse(.data$uptime < threshold_uptime,
-                        NA,!!sym(transport_type))) %>% select(-!!sym(transport_type))
+                        NA, !!sym(transport_type))) %>% select(-!!sym(transport_type))
   }
   else {
     data <- data %>%
-      mutate(vehicle = ifelse(.data$uptime < threshold_uptime,NA,.data$car + .data$heavy),
-             car = ifelse(.data$uptime < threshold_uptime,NA,.data$car),
-             heavy = ifelse(.data$uptime < threshold_uptime,NA,.data$heavy))
+      mutate(
+        vehicle = ifelse(.data$uptime < threshold_uptime, NA, .data$car + .data$heavy),
+        car = ifelse(.data$uptime < threshold_uptime, NA, .data$car),
+        heavy = ifelse(.data$uptime < threshold_uptime, NA, .data$heavy)
+      )
   }
 
   return(data)
@@ -171,27 +181,30 @@ validate_and_preprocess_data <- function(data,
 #' @export
 #'
 #' @examples
+#' base_vars <- c("day_of_month", "hour", "weekday", "month", "year",
+#'                "vacation", "week_number", "segment_id", "date")
 #' data <- validate_and_preprocess_data(data = traffic,
 #'                                      transport_type = "car",
 #'                                      sensors_id = 9000001844,
-#'                                      base_vars = c("day_of_month", "hour", "weekday",
-#'                                                   "month","year", "vacation",
-#'                                                   "week_number", "segment_id","date"))
-#'
+#'                                      base_vars = base_vars)
 #' data <- create_and_train_model(data = data,
 #'                                target = "car",
-#'                                base_vars = c("day_of_month", "hour", "weekday",
-#'                                             "month", year", "vacation",
-#'                                             "week_number", "segment_id", "date"),
+#'                                base_vars = base_vars,
 #'                                threshold_uptime = 0.5)
 
 
 create_and_train_model <-
-  function(data_rf, target, base_vars, threshold_uptime,min.node.size = NULL, mtry = NULL,num_trees=500) {
+  function(data_rf,
+           target,
+           base_vars,
+           threshold_uptime,
+           min.node.size = NULL,
+           mtry = NULL,
+           num_trees = 500) {
     # Split data into training and test sets
     is_train <- !is.na(data_rf$y)
-    data_train <- data_rf[is_train,]
-    data_imput <- data_rf[!is_train,]
+    data_train <- data_rf[is_train, ]
+    data_imput <- data_rf[!is_train, ]
 
     # Remove NA from training data
     data_train_clean <- data_train %>%
@@ -200,11 +213,13 @@ create_and_train_model <-
 
     # Train Random Forest model
     model_rf <-
-      ranger(y ~ . - date,
-             data = data_train_clean,
-             mtry = mtry,
-             min.node.size = min.node.size,
-             num.trees = num_trees)
+      ranger(
+        y ~ . - date,
+        data = data_train_clean,
+        mtry = mtry,
+        min.node.size = min.node.size,
+        num.trees = num_trees
+      )
 
 
     # Prepare test data, keeping track of removed rows
@@ -220,7 +235,7 @@ create_and_train_model <-
 
     # Make predictions only for complete cases
     predictions <-
-      predict(model_rf, data = data_imput_clean[rows_to_predict,])$predictions
+      predict(model_rf, data = data_imput_clean[rows_to_predict, ])$predictions
 
     # Assign predictions back to the original test data frame
     data_imput$y <- NA
@@ -301,12 +316,14 @@ impute_missing_data <-
 
     # Validate and preprocess the input data
     data <-
-      validate_and_preprocess_data(data = data,
-                                   transport_type = transport_type,
-                                   sensors_id= sensors_id,
-                                   base_vars = base_vars,
-                                   add_vars = add_vars,
-                                   threshold_uptime =threshold_uptime)
+      validate_and_preprocess_data(
+        data = data,
+        transport_type = transport_type,
+        sensors_id = sensors_id,
+        base_vars = base_vars,
+        add_vars = add_vars,
+        threshold_uptime = threshold_uptime
+      )
 
 
     # Impute data based on transport type
@@ -314,17 +331,38 @@ impute_missing_data <-
       # Impute 'vehicle' and 'car' ,'heavy' separately
       data_vehicle <- data %>% rename(y = .data$vehicle)
       data_vehicle <-
-        create_and_train_model(data_vehicle, "vehicle", base_vars, threshold_uptime,
-                               min.node.size = min.node.size,mtry = mtry,num_trees = num_trees)
+        create_and_train_model(
+          data_vehicle,
+          "vehicle",
+          base_vars,
+          threshold_uptime,
+          min.node.size = min.node.size,
+          mtry = mtry,
+          num_trees = num_trees
+        )
       data_car <- data %>% rename(y = .data$car)
       data_car <-
-        create_and_train_model(data_car, "car", base_vars, threshold_uptime,
-                               min.node.size = min.node.size,mtry = mtry,num_trees = num_trees)
+        create_and_train_model(
+          data_car,
+          "car",
+          base_vars,
+          threshold_uptime,
+          min.node.size = min.node.size,
+          mtry = mtry,
+          num_trees = num_trees
+        )
 
       data_heavy <- data %>% rename(y = .data$heavy)
       data_heavy <-
-        create_and_train_model(data_heavy, "heavy", base_vars, threshold_uptime,
-                               min.node.size = min.node.size,mtry = mtry,num_trees = num_trees)
+        create_and_train_model(
+          data_heavy,
+          "heavy",
+          base_vars,
+          threshold_uptime,
+          min.node.size = min.node.size,
+          mtry = mtry,
+          num_trees = num_trees
+        )
 
       # Calculate 'heavy' as max(0, vehicle - car)
       data_complete <- data_vehicle %>%
@@ -341,15 +379,22 @@ impute_missing_data <-
           by = c("segment_id", "date")
         ) %>%
         left_join(
-          data %>% select(-.data$car, -.data$vehicle, -.data$heavy),
+          data %>% select(-.data$car,-.data$vehicle,-.data$heavy),
           by = c("segment_id", "date")
         )
 
     } else {
       # For 'car' ,'vehicle' or 'heavy' , use the original method
       data_complete <-
-        create_and_train_model(data, transport_type, base_vars, threshold_uptime,
-                               min.node.size = min.node.size, mtry = mtry, num_trees = num_trees)
+        create_and_train_model(
+          data,
+          transport_type,
+          base_vars,
+          threshold_uptime,
+          min.node.size = min.node.size,
+          mtry = mtry,
+          num_trees = num_trees
+        )
     }
 
     # Sort the final dataset
@@ -386,76 +431,94 @@ impute_missing_data <-
 #'                         threshold_uptime = 0.5)
 #' }
 
-fine_tune_impute_missing_data <- function(data, target_col="vehicle",sensors_id = NULL,
-                                          mtry_range, min_n_range, num_trees = 500, add_vars = NULL,
-                                          threshold_uptime = 0.5) {
-  # Define base variables
-  base_vars <- c(
-    "day_of_month",
-    "hour",
-    "weekday",
-    "month",
-    "year",
-    "vacation",
-    "week_number",
-    "segment_id",
-    "date"
-  )
+fine_tune_impute_missing_data <-
+  function(data,
+           target_col = "vehicle",
+           sensors_id = NULL,
+           mtry_range,
+           min_n_range,
+           num_trees = 500,
+           add_vars = NULL,
+           threshold_uptime = 0.5) {
+    # Define base variables
+    base_vars <- c(
+      "day_of_month",
+      "hour",
+      "weekday",
+      "month",
+      "year",
+      "vacation",
+      "week_number",
+      "segment_id",
+      "date"
+    )
 
-  # Validate and preprocess the input data
-  data <- validate_and_preprocess_data(data = data,
-                                       transport_type = target_col,
-                                       sensors_id= sensors_id,
-                                       base_vars = base_vars,
-                                       add_vars = add_vars,
-                                       threshold_uptime =threshold_uptime)
+    # Validate and preprocess the input data
+    data <- validate_and_preprocess_data(
+      data = data,
+      transport_type = target_col,
+      sensors_id = sensors_id,
+      base_vars = base_vars,
+      add_vars = add_vars,
+      threshold_uptime = threshold_uptime
+    )
 
-  #remove date from base_vars
-  base_vars <- base_vars[!base_vars %in% c("date")]
+    #remove date from base_vars
+    base_vars <- base_vars[!base_vars %in% c("date")]
 
-  #Create the training data
-  data <- data %>%
-    select(all_of(base_vars),"y") %>% na.omit()
+    #Create the training data
+    data <- data %>%
+      select(all_of(base_vars), "y") %>% na.omit()
 
 
-  # Create the grid of hyperparameters to search
-  rf_grid <- expand.grid(
-    mtry = mtry_range,
-    min_n = min_n_range
-  )
+    # Create the grid of hyperparameters to search
+    rf_grid <- expand.grid(mtry = mtry_range,
+                           min_n = min_n_range)
 
-  # Function to train and evaluate a single model
-  evaluate_model <- function(mtry, min_n) {
-    tryCatch({
-      model <- ranger(
-        formula = y ~ .,
-        data = data,
-        num.trees = num_trees,
-        mtry = mtry,
-        min.node.size = min_n,
-        importance = 'impurity',
-        oob.error = TRUE
-      )
-      return(tibble(mtry = mtry, min_n = min_n, "RMSE" = sqrt(model$prediction.error)))
-    }, error = function(e) {
-      warning(paste("Error in model with mtry =", mtry, "and min_n =", min_n, ":", e$message))
-      return(NULL)
-    })
+    # Function to train and evaluate a single model
+    evaluate_model <- function(mtry, min_n) {
+      tryCatch({
+        model <- ranger(
+          formula = y ~ .,
+          data = data,
+          num.trees = num_trees,
+          mtry = mtry,
+          min.node.size = min_n,
+          importance = 'impurity',
+          oob.error = TRUE
+        )
+        return(tibble(
+          mtry = mtry,
+          min_n = min_n,
+          "RMSE" = sqrt(model$prediction.error)
+        ))
+      }, error = function(e) {
+        warning(paste(
+          "Error in model with mtry =",
+          mtry,
+          "and min_n =",
+          min_n,
+          ":",
+          e$message
+        ))
+        return(NULL)
+      })
+    }
+
+    # Evaluate all combinations
+    results <-
+      purrr::map2_dfr(rf_grid$mtry, rf_grid$min_n, evaluate_model)
+
+    # Check if all RMSE values are the same
+    if (length(unique(results$RMSE)) == 1) {
+      warning("All RMSE values are identical. Returning the first set of parameters.")
+      best_params <- results[1,]
+    } else {
+      # Find best parameters
+      best_params <- results %>%
+        arrange("RMSE") %>%
+        slice(1)
+    }
+
+    return(list(best_params = best_params, all_results = results))
   }
-
-  # Evaluate all combinations
-  results <- purrr::map2_dfr(rf_grid$mtry, rf_grid$min_n, evaluate_model)
-
-  # Check if all RMSE values are the same
-  if (length(unique(results$RMSE)) == 1) {
-    warning("All RMSE values are identical. Returning the first set of parameters.")
-    best_params <- results[1, ]
-  } else {
-    # Find best parameters
-    best_params <- results %>%
-      arrange("RMSE") %>%
-      slice(1)
-  }
-
-  return(list(best_params = best_params, all_results = results))
-}

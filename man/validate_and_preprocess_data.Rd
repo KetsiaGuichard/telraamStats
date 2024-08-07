@@ -28,4 +28,12 @@ A preprocessed data frame ready for imputation.
 \description{
 This function validates and preprocesses the input data for traffic analysis.
 }
+\examples{
+data <- validate_and_preprocess_data(data = traffic,
+                                     transport_type = "car",
+                                     sensors_id = 9000001844,
+                                     base_vars = c("day_of_month", "hour", "weekday",
+                                                  "month", "year", "vacation",
+                                                  "week_number", "segment_id", "date"))
+}
 \keyword{internal}
