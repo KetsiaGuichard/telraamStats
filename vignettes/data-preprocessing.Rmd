@@ -31,9 +31,9 @@ Before we go on, we'll attach the packages we use.
 library(telraamStats)
 ```
 
-We will also load the data. Here, we will use the dataset included with the package, but you can replicate these preprocessing functions using data from your own sensors. For more information on data retrieval, please refer to the dedicated vignette (vignette("data-details")).
+We will also load the data. Here, we will use the dataset included with the package, but you can replicate these preprocessing functions using data from your own sensors. For more information on data retrieval, please refer to the dedicated vignette (`vignette("data-details")`).
 
-The included dataset is lazily loaded with the telraamStats package. If you have already called library(telraamStats), the dataset is already attached and can be accessed directly:
+The included dataset is lazily loaded with the telraamStats package. If you have already called `library(telraamStats)`, the dataset is already attached and can be accessed directly:
 
 ```{r, eval=FALSE, results='asis'}
 head(traffic)
@@ -45,55 +45,47 @@ knitr::kable(head(traffic))
 
 # Motivation for Data Preprocessing
 
-First of all, understanding the need for data preprocessing is crucial. The data from the Telraam cameras is not always clean and can contain missing values,inactivity period, bad quality measurements,outliers etc. We need to preprocess the data to make it suitable for analysis.
+The data from the Telraam cameras is not always perfect and can contain missing values, inactivity period, bad quality measurements,outliers, etc. We need to preprocess the data to make it suitable for analysis.
 
-Reasons for Missing Data
+## Reasons for Missing Data
 
 Missing data in our dataset can be attributed to several factors:
 
-```         
-•   Weather Phenomena: like rain or fog that can obstruct the camera lens.
+-   Weather phenomena: Rain or fog can obstruct the camera lens ;
 
-•   Low Light: the camera may not be able to capture images in low light conditions like at        night.
+-   Low light: The camera may not be able to capture images in low light conditions, such as at night ;
 
-•   Sensor Obstruction: Objects like trees can obstruct the camera, causing aberrations in the     data. These obstructions, especially when moving with the wind, can be misinterpreted as       vehicles passing by. 
+-   Sensor obstruction: Objects like trees can obstruct the camera, causing outliers in the data. These obstructions, especially when moving with the wind, can be misinterpreted as vehicles passing by ;
 
-•   Wi-Fi Connection Issues or Power Outages which can cause the camera to stop recording data.
-```
+-   Wi-Fi connection issues or power outages: These can cause the camera to stop recording data.
 
 These interruptions can be random or sporadic and can vary in duration.
 
-### Identification of Missing Data
+## Identification of Missing Data
 
-Telraam uses uptime to evaluate the reliability of the data recorded by the sensors.
+Telraam uses uptime to evaluate the reliability of the data recorded by the sensors. Uptime measures the proportion of time during which the sensor has recorded information, ranging from 0 to 1. For example, an uptime of 0.5 indicates that the sensor recorded data for 50% of the time within an hour.
 
-```         
-•   Definition of Uptime: It measures the proportion of time during which the sensor has recorded information, varying from 0 to 1. For example, an uptime of 0.5 indicates that the sensor recorded data for 50% of the time within an hour.
+Data is considered reliable if its uptime is greater than 0.5. For a measurement with an uptime of 0.5, the result over 30 minutes is adjusted by multiplying it by 2 to obtain an estimate over an hour.
 
-•   Reliability Criterion: Data is considered reliable if its uptime is greater than 0.5. For a measurement with an uptime of 0.5, the result over 30 minutes is adjusted by multiplying it by 2 to obtain an estimate over an hour.
-```
+## Importance of Imputing Missing Data
 
-### Importance of Imputing Missing Data
+Imputing missing data is crucial for the following reasons:
 
-Imputing missing data is crucial for:
+-   Preserving data quality: Imputation maintains data integrity by avoiding biases due to missing values ;
 
-```         
-•   Preserving Data Quality: Imputation maintains data integrity by avoiding biases due to missing values.
+-   Improving result accuracy: It improves the precision of analyses by providing a complete and representative view ;
 
-•   Improving Result Accuracy: It improves the precision of analyses by providing a complete and representative view.
-
-•   Enabling Advanced Analyses: Imputed data expands the base for advanced analyses such as statistical models or breakpoint detection.
-```
+-   Enabling advanced analyses: Imputed data expands the base for advanced analyses such as statistical models or breakpoint detection.
 
 By addressing these issues through preprocessing, we ensure that the data from Telraam cameras is clean, reliable, and ready for accurate traffic analysis.
 
 # Clean data from inactivity periods
 
-When working with traffic data from Telraam cameras, it is crucial to clean the data from periods of inactivity and nighttime hours when the sensors cannot capture information. This ensures that the data used for analysis is accurate and reliable. For this purpose, the package provides functions to remove inactive periods and retrieve missing hours.
+When working with traffic data from Telraam cameras, it is crucial to clean the data from periods of inactivity and nighttime hours when the sensors cannot capture information. This ensures that the data used for analysis are accurate and reliable. For this purpose, the package provides functions to remove inactive periods and retrieve missing hours.
 
 The function `retrieve_missing_data` is designed to clean the data by removing nighttime hours and periods of inactivity. It is composed of two main functions: `retrieve_missing_hours` and `replace_inactivity_period`.
 
-The \`retrieve_missing_hours\` function eliminates nighttime hours from the dataset where sensors cannot reliably capture information. It operates on a dataframe, considering an uptime threshold (default is 0.5), and filters out hours based on seasonal categorization provided by a \`season\` column. It removes any hour where at least 95% of the values are missing during these seasons.
+The `retrieve_missing_hours` function eliminates nighttime hours from the dataset where sensors cannot reliably capture information. It operates on a dataframe, considering an uptime threshold (default is 0.5), and filters out hours based on seasonal categorization provided by a `season` column, removing any hour where at least 95% of the values are missing during these seasons.
 
 ```{r}
 # Remove night time from traffic
@@ -103,7 +95,7 @@ traffic_without_nighttime <- retrieve_missing_hours(traffic,threshold_uptime = 0
 traffic_without_nighttime %>% group_by(season,hour) %>% select(season,hour) %>% distinct()
 ```
 
-The \`replace_inactivity_period\` function identifies periods of sensor inactivity, which can be adjusted using the \`successive_day\` parameter (default is 2 days). You can also specify an uptime threshold. Additionally, using the \`remove_data\` parameter, you can choose whether to completely remove these periods or replace their data with \`NA\` values. If the intention is to subsequently impute missing data, it is advisable to remove these periods entirely rather than replacing them with \`NA\` values. The function can also generate a graph showing the removed periods by setting the \`show_graph\` parameter to \`TRUE\`.
+The `replace_inactivity_period` function identifies periods of sensor inactivity and can be adjusted using the `successive_day` parameter (default is 2 days). An uptime threshold can also be specified. Additionally, using the `remove_data` parameter, you can choose whether to completely remove these periods or replace the data with `NA` values. If the intention is to impute missing data subsequently, it is advisable to remove these periods entirely rather than replacing them with `NA` values. The function can also generate a graph of the removed periods by setting the `show_graph` parameter to `TRUE`.
 
 ```{r}
 traffic_without_inactivity_period <- replace_inactivity_period(traffic,successive_day = 2 ,threshold_uptime = 0.5,remove_data = T,show_graph = T)
@@ -111,9 +103,9 @@ traffic_without_inactivity_period <- replace_inactivity_period(traffic,successiv
 
 ```
 
-This function monitors whether there is a consecutive period with uptime is less than threshold_uptime or if any vehicles are counted during this period
+This function monitors whether there is a consecutive period with uptime less than `threshold_uptime` or if any vehicles are counted during this period.
 
-Finally, we can apply both functions within `retrieve_missing_data` to perform data cleaning and specify a date range if we want and a segment_id.
+Finally, we can apply both functions within `retrieve_missing_data` to perform data cleaning, specifying a `date_range` and a `segment_id` if desired.
 
 ```{r}
 traffic_cleaned <- retrieve_missing_data(traffic,
@@ -125,23 +117,21 @@ traffic_cleaned <- retrieve_missing_data(traffic,
                                  show_graph = F)
 
 traffic_cleaned
-
-
 ```
 
 Now that the data is clean, we can proceed with the imputation process.
 
 # Impute Missing Data
 
-The next step is to impute the missing data. The package provides a function called `impute_missing_data` for this purpose. This function uses the `ranger` package and employs a machine learning algorithm called Random Forest to handle the imputation.
+The next step is to impute the missing data. The package provides a function called `impute_missing_data` for this purpose. This function uses the `ranger` package and employs a Random Forest machine learning algorithm to handle the imputation.
 
-### How Does This Algorithm Work?
+## How Does This Algorithm Work?
 
-The Random Forest algorithm is a supervised learning algorithm used for both classification and regression tasks. It operates based on the concept of ensemble learning, which involves combining multiple models to solve complex problems and improve the overall performance of the model. For more detailed information on the Random Forest algorithm, you can refer to the following link: [Random Forest Algorithm](https://bradleyboehmke.github.io/HOML/random-forest.html#hyperparameters)
+The Random Forest algorithm is a supervised learning algorithm used for both classification and regression tasks. It operates based on ensemble learning, which involves combining multiple models to solve complex problems and improve overall performance of the model. For more detailed information on the Random Forest algorithm, you can refer to the following link: [Random Forest Algorithm](https://bradleyboehmke.github.io/HOML/random-forest.html#hyperparameters)
 
-The Random Forest algorithm is used in this function to predict missing data based on the temporal variables in the dataset. The algorithm is trained on the data with complete information and then used to predict the missing values.
+The Random Forest algorithm is used in this function to predict missing data based on the temporal features in the dataset. The algorithm is trained on the data that contains complete information and then used to predict the missing values.
 
-The temporal variables used to predict missing data are :
+The temporal variables used to predict missing data are:
 
 -   `day_of_month`: the day of the month
 -   `hour`: the hour of the day
@@ -152,13 +142,13 @@ The temporal variables used to predict missing data are :
 -   `week_number`: the week number of the year
 -   `segment_id`: the ID of the segment
 
-### How to Use the Function?
+## How to Use the Function?
 
 The function `impute_missing_data` takes cleaned data as input and returns the data with missing values imputed. You can specify the sensor IDs for which you want to impute missing data. If you don't specify any sensor IDs, the function will impute missing data for all sensors.
 
-The `transport_type` parameter allows you to specify the type of transport you are interested in. It can be `"car"`, `"heavy"`, or `"vehicle"`, where `"vehicle"` is calculated as the sum of cars and heavy vehicles, providing a good approximation of the total traffic. You can also impute all three types of transport by setting `transport_type` to `"all"`. The default value is `"vehicle"`.
+The `transport_type` parameter allows you to specify the type of transport you are interested in. It can be `"car"`, `"heavy"`, or `"vehicle"` where `"vehicle"` is calculated as the sum of cars and heavy vehicles, providing a good approximation of the total traffic. You can also impute all three types of transport by setting `transport_type` to `"all"`. The default value is `"vehicle"`.
 
-You can also specify the `threshold_uptime` to use for imputing missing data. The function will replace all data where the uptime is below the threshold. The default value is `0.5.`
+You can also specify the `threshold_uptime` to use for imputing missing data. The function will replace all data where the uptime is below the threshold. The default value is `0.5`.
 
 ```{r}
 traffic_imputed <- impute_missing_data(traffic_cleaned, sensors_id = 9000001844, transport_type = "vehicle", threshold_uptime = 0.5)
@@ -178,51 +168,49 @@ table(traffic_imputed$imputed)
 
 # **Fine-tuning the Model**
 
-This package offers users the capability to fine-tune hyperparameters of the Random Forest algorithm, thereby enhancing the quality of data imputation.
+This package allows users to fine-tune hyperparameters of the Random Forest algorithm, thereby enhancing the quality of data imputation.
 
-### Key Hyperparameters
+## Key Hyperparameters
 
-1.  **Min Node Size:** Determines the minimum size of terminal nodes in the decision trees generated by the Random Forest. Larger values can lead to simpler trees, reducing overfitting.
+1.  **Min Node Size:** Determines the minimum size of terminal nodes in the decision trees generated by the Random Forest. Larger values can result in simpler trees, reducing overfitting ;
 
-2.  **Mtry:** Specifies the number of variables randomly sampled at each split when building decision trees. A higher `mtry` can increase model robustness by incorporating more diverse predictors.
+2.  **Mtry:** Specifies the number of variables randomly sampled at each split when building decision trees. A higher `mtry` can improve model robustness by incorporating more diverse predictors.
 
-### How to Fine-tune Using `fine_tune_impute_missing_data`
+## How to Fine-tune Using `fine_tune_impute_missing_data`
 
 To optimize imputation quality, utilize the `fine_tune_impute_missing_data` function provided by this package, which fine-tunes these parameters with an [out-of-bag validation](https://bradleyboehmke.github.io/HOML/random-forest.html#hyperparameters) to optimize Random Forest model's ability to accurately impute missing data, ensuring robust and reliable results for traffic analysis.
 
 -   **Input Parameters:**
-    -   `data`: The dataset containing the target variable and predictors.
-    -   `target_col`: The variable to be imputed (`"vehicle"`, `"car"`, `"heavy"`, or `"all"`).
-    -   `sensors_id`: Optional sensor IDs to filter the data.
-    -   `mtry_range`: A vector of possible `mtry` values to test.
-    -   `min_n_range`: A vector of potential `min.node.size` values to test.
-    -   `num_trees`: Number of trees to grow in the Random Forest.
-    -   `add_vars`: Additional variables to include in the model.
+    -   `data`: The dataset containing the target variable and predictors ;
+    -   `target_col`: The variable to be imputed (`"vehicle"`, `"car"`, `"heavy"`, or `"all"`) ;
+    -   `sensors_id`: Optional sensor IDs to filter the data ;
+    -   `mtry_range`: A vector of possible `mtry` values to test ;
+    -   `min_n_range`: A vector of potential `min.node.size` values to test ;
+    -   `num_trees`: Number of trees to grow in the Random Forest ;
+    -   `add_vars`: Additional variables to include in the model ;
     -   `threshold_uptime`: Minimum uptime threshold for data inclusion.
 -   **Output:**
-    -   **best_params**: These are the optimal values for `mtry` and `min_n` that yielded the best performance according to the evaluation metric.
-
+    -   **best_params**: These are the optimal values for `mtry` and `min_n` that yielded the best performance according to the evaluation metric ;
     -   **all_results**: This is a comprehensive table showing the performance for each tested combination of parameters. You can use it to understand how different parameter values affect the model's performance.
 
-### Interpretation of Fine-Tuning Results
+## Interpretation of Fine-Tuning Results
 
 After running `fine_tune_impute_missing_data`, you will obtain a set of results that are important to understand:
 
-Key Considerations:
+### Key Considerations:
 
-\- A higher `mtry` means more variables are considered at each split. This can improve accuracy but also increases computation time.
+- A higher `mtry` means more variables considered at each split. This can improve accuracy but also increases computation time ;
+- A larger `min_n` results in shallower trees, which can help prevent overfitting but might miss complex patterns in the data.
 
-\- A larger `min_n` results in shallower trees, which can help prevent overfitting but might miss complex patterns in the data.
+### Performance Metrics:
 
-Performance Metrics:
+Pay close attention to RMSE (Root Mean Square Error), to evaluate the quality of imputation. Values closer to 0 for RMSE generally indicate better performance.
 
-\- Pay close attention to RMSE (Root Mean Square Error),, to evaluate the quality of imputation. Values closer to 0 for RMSE generally indicate better performance.
+### Trade-offs:
 
-Trade-offs:
+Keep in mind there may be a trade-off between imputation accuracy and computation time. Optimal parameters may not always be the most practical, especially with large datasets.
 
-\- Keep in mind there may be a trade-off between imputation accuracy and computation time. Optimal parameters may not always be the most practical, especially with large datasets.
-
-### Example Usage:
+## Example Usage:
 
 ``` r
 # Fine-tune hyperparameters for vehicle imputation
@@ -241,7 +229,7 @@ all_results <- fine_tune_results$all_results
 best_params <- fine_tune_results$best_params
 ```
 
-Finnaly, we can then directly apply these optimized parameters in the `impute_missing_data` function as follows:
+Finally, we can then directly apply these optimized parameters in the `impute_missing_data` function as follows:
 
 ``` r
 # Impute missing data with the optimized parameters
@@ -257,12 +245,10 @@ traffic_imputed <- impute_missing_data(traffic_cleaned,
 
 Additionally, the `num_trees` parameter in `impute_missing_data` controls the depth of the Random Forest model by specifying the number of trees to grow. A higher number of trees enhances the model's robustness and accuracy in imputing missing data.
 
-However, it’s important to note that the optimal value for num_trees (number of trees) is not determined by fine_tune_impute_missing_data and should be carefully chosen based on the specific dataset and computational constraints.
+However, it’s important to note that the optimal value for `num_trees` (number of trees) is not determined by `fine_tune_impute_missing_data` and should be carefully chosen based on the specific dataset and computational constraints.
 
 # Using Advice
 
--   To enhance imputation quality, provide ample data for algorithms to learn specific patterns. Consider expanding the dataset’s scope or incorporating data from multiple sensors. Note that this approach may slow down execution speed.
-
--   For periodic imputation as data accumulates, it’s advisable to re-run imputation on the entire dataset to enhance accuracy. Avoid using imputation models trained on already imputed data, as this can introduce bias.
-
-Now that you have cleaned your data, you can explore and visualize it using the rest of our package. For more on data visualization, see the dedicated vignette (vignette("data-visualization"))
+-   To enhance imputation quality, provide ample data for algorithms to learn specific patterns. Consider expanding the dataset’s scope or incorporating data from multiple sensors. Keep in ming that that this approach may slow down execution speed ;
+-   For periodic imputation as new data accumulates, it’s advisable to re-run imputation on the entire dataset to enhance accuracy. Avoid using imputation models trained on data that has already been imputed, as this can introduce bias.
+Now that you have cleaned your data, you can explore and visualize it using the rest of our package. For more on data visualization, see the dedicated vignette (`vignette("data-visualization")`).
